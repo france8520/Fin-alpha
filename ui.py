@@ -1,10 +1,11 @@
 """
-UI Components Module
-Contains all custom UI components and layout management
+UI Components Module - Fixed Version
+Contains all custom UI components with improved output scaling and formatting
 """
 
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -27,8 +28,8 @@ class ModernTextInput(TextInput):
         self.foreground_color = (0.1, 0.1, 0.1, 1)
         self.cursor_color = (0.1, 0.3, 0.7, 1)
         self.selection_color = (0.2, 0.4, 0.8, 0.3)
-        self.font_size = '16sp'
-        self.padding = [15, 10]
+        self.font_size = '18sp'  # Increased font size
+        self.padding = [15, 12]
         self.multiline = False
 
 
@@ -43,7 +44,7 @@ class ModernButton(Button):
     def _setup_styling(self):
         """Apply modern styling to button"""
         self.background_color = (0, 0, 0, 0)  # Transparent background
-        self.font_size = '16sp'
+        self.font_size = '18sp'  # Increased font size
         self.bold = True
         self.color = (1, 1, 1, 1)
     
@@ -87,7 +88,7 @@ class ModernLabel(Label):
     def _setup_styling(self, text_color):
         """Apply modern styling to label"""
         self.color = text_color
-        self.font_size = '14sp'
+        self.font_size = '16sp'  # Increased base font size
         self.text_size = (None, None)
         self.halign = 'center'
         self.valign = 'middle'
@@ -103,7 +104,7 @@ class TitleLabel(ModernLabel):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.font_size = '28sp'
+        self.font_size = '32sp'  # Larger title
         self.bold = True
 
 
@@ -112,131 +113,242 @@ class SubtitleLabel(ModernLabel):
     
     def __init__(self, **kwargs):
         super().__init__(text_color=(0.8, 0.9, 1, 0.8), **kwargs)
-        self.font_size = '14sp'
+        self.font_size = '16sp'  # Increased subtitle size
 
 
-class ResultLabel(ModernLabel):
-    """Result display label with better formatting"""
+class ScrollableResultLabel(ScrollView):
+    """Scrollable container for results with proper text scaling"""
     
     def __init__(self, **kwargs):
-        super().__init__(text_color=(0.95, 0.98, 1.0, 0.95), **kwargs)
-        self.font_size = '15sp'
-        self.markup = True  # Enable markup for formatting
-        self.text_size = (None, None)
-        self.halign = 'left'  # Left align for better readability
-        self.valign = 'top'
+        super().__init__(**kwargs)
+        self.do_scroll_x = False
+        self.do_scroll_y = True
+        self.scroll_type = ['bars', 'content']
+        self.bar_width = 10
+        
+        # Create the label inside
+        self.result_label = Label(
+            text="Results will appear here after analysis...",
+            text_size=(None, None),
+            halign='left',
+            valign='top',
+            color=(0.95, 0.98, 1.0, 0.95),
+            font_size='16sp',  # Good readable size
+            markup=True
+        )
+        
+        self.add_widget(self.result_label)
+        self.bind(size=self._update_text_size)
+    
+    def _update_text_size(self, *args):
+        """Update text size based on container size"""
+        if self.width > 0:
+            # Set text_size to container width for proper wrapping
+            self.result_label.text_size = (self.width - 20, None)  # -20 for scrollbar
+            # Update height based on texture size
+            self.result_label.height = max(self.result_label.texture_size[1], self.height)
+            self.result_label.size_hint_y = None
+    
+    def set_text(self, text: str, color: tuple = (0.95, 0.98, 1.0, 0.95)):
+        """Set text with proper formatting"""
+        self.result_label.text = text
+        self.result_label.color = color
+        # Force text size update
+        self._update_text_size()
+
+
+class ResultDisplayPanel(BoxLayout):
+    """Enhanced results panel with better formatting"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(orientation='vertical', **kwargs)
+        
+        # Header for results section
+        self.header_label = Label(
+            text="Analysis Results",
+            font_size='20sp',
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(1, None),
+            height='40dp'
+        )
+        
+        # Scrollable results area
+        self.results_scroll = ScrollableResultLabel(
+            size_hint=(1, 1)
+        )
+        
+        self.add_widget(self.header_label)
+        self.add_widget(self.results_scroll)
+    
+    def set_results(self, text: str, result_type: str = "info"):
+        """Set results with color coding"""
+        colors = {
+            'success': (0.7, 1, 0.7, 1),
+            'warning': (1, 0.9, 0.5, 1),
+            'error': (1, 0.7, 0.7, 1),
+            'info': (0.9, 0.95, 1, 1)
+        }
+        
+        color = colors.get(result_type, colors['info'])
+        
+        # Format text with better spacing and structure
+        formatted_text = self._format_analysis_text(text)
+        self.results_scroll.set_text(formatted_text, color)
+    
+    def _format_analysis_text(self, text: str) -> str:
+        """Format analysis text for better readability"""
+        if "ANALYSIS RESULTS FOR" in text:
+            # Format the analysis results
+            lines = text.split('\n')
+            formatted_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    formatted_lines.append("")
+                elif "ANALYSIS RESULTS FOR" in line:
+                    # Header
+                    ticker = line.split("FOR ")[-1]
+                    formatted_lines.append(f"[size=24sp][b]{ticker} Analysis[/b][/size]")
+                    formatted_lines.append("")
+                elif "Current Price:" in line:
+                    # Current price
+                    price = line.split(": ")[-1]
+                    formatted_lines.append(f"[size=20sp][b]Current Price: [color=90ff90]{price}[/color][/b][/size]")
+                    formatted_lines.append("")
+                elif "RISK METRICS:" in line:
+                    formatted_lines.append(f"[size=18sp][b]Risk Metrics:[/b][/size]")
+                elif line.startswith("• "):
+                    # Metric line
+                    metric = line[2:]  # Remove bullet
+                    if ":" in metric:
+                        name, value = metric.split(":", 1)
+                        formatted_lines.append(f"[size=16sp]• [b]{name}:[/b] {value.strip()}[/size]")
+                    else:
+                        formatted_lines.append(f"[size=16sp]• {metric}[/size]")
+                elif "Risk Level:" in line:
+                    # Risk level with color coding
+                    level = line.split(": ")[-1]
+                    color = "ff9090" if level == "HIGH" else ("ffff90" if level == "MEDIUM" else "90ff90")
+                    formatted_lines.append("")
+                    formatted_lines.append(f"[size=20sp][b]Risk Level: [color={color}]{level}[/color][/b][/size]")
+                else:
+                    formatted_lines.append(f"[size=16sp]{line}[/size]")
+            
+            return "\n".join(formatted_lines)
+        else:
+            # For error messages or other text
+            return f"[size=16sp]{text}[/size]"
 
 
 class StockAnalyzerLayout(FloatLayout):
-    """Main application layout with content management"""
+    """Main application layout with improved content management"""
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
         # Color scheme
         self.colors = {
-            'success': (0.9, 1, 0.9, 1),
-            'warning': (1, 0.7, 0.3, 1),
+            'success': (0.7, 1, 0.7, 1),
+            'warning': (1, 0.9, 0.5, 1),
             'error': (1, 0.7, 0.7, 1),
-            'info': (0.7, 0.9, 1, 1)
+            'info': (0.9, 0.95, 1, 1)
         }
         
         self._setup_layout()
     
     def _setup_layout(self):
         """Setup the main content layout"""
-        # Content container with proper spacing
+        # Main content container
         self.content_layout = BoxLayout(
             orientation="vertical",
-            padding=[40, 80, 40, 120],  # Extra bottom padding for wave
-            spacing=25,
-            size_hint=(0.8, 0.7),
-            pos_hint={'center_x': 0.5, 'center_y': 0.6}
+            padding=[30, 60, 30, 100],  # Better padding
+            spacing=20,
+            size_hint=(0.9, 0.8),  # Use more screen space
+            pos_hint={'center_x': 0.5, 'center_y': 0.55}
         )
         
         self.add_widget(self.content_layout)
         
-        # Create UI components
+        # Create sections
         self._create_header()
         self._create_input_section()
         self._create_results_section()
     
     def _create_header(self):
-        """Create header section with title and subtitle"""
-        # Main title with responsive sizing
+        """Create header section"""
+        # Header container
+        header_box = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, None),
+            height='100dp',
+            spacing=10
+        )
+        
+        # Main title
         self.title = TitleLabel(
             text="Stock Risk Analyzer",
             size_hint=(1, None),
-            height='40dp'  # Fixed height to prevent squashing
+            height='50dp'
         )
         
-        # Subtitle with responsive sizing
+        # Subtitle
         self.subtitle = SubtitleLabel(
             text="Enter a stock ticker to analyze volatility and risk metrics",
             size_hint=(1, None),
-            height='30dp'  # Fixed height
+            height='40dp'
         )
         
-        self.content_layout.add_widget(self.title)
-        self.content_layout.add_widget(self.subtitle)
+        header_box.add_widget(self.title)
+        header_box.add_widget(self.subtitle)
+        self.content_layout.add_widget(header_box)
     
     def _create_input_section(self):
-        """Create input section with ticker input and analyze button"""
-        # Ticker input field with fixed height
-        self.ticker_input = ModernTextInput(
-            hint_text="Enter stock ticker (e.g. AAPL, PTTEP.BK)",
+        """Create input section"""
+        # Input container
+        input_box = BoxLayout(
+            orientation='vertical',
             size_hint=(1, None),
-            height='45dp'  # Fixed height to prevent squashing
+            height='120dp',
+            spacing=15
         )
         
-        # Analyze button with fixed height
+        # Ticker input
+        self.ticker_input = ModernTextInput(
+            hint_text="Enter stock ticker (e.g. AAPL, TSLA, GOOGL)",
+            size_hint=(1, None),
+            height='50dp'
+        )
+        
+        # Analyze button
         self.analyze_button = ModernButton(
             text="ANALYZE STOCK",
             size_hint=(1, None),
-            height='50dp'  # Fixed height
+            height='55dp'
         )
         
-        self.content_layout.add_widget(self.ticker_input)
-        self.content_layout.add_widget(self.analyze_button)
+        input_box.add_widget(self.ticker_input)
+        input_box.add_widget(self.analyze_button)
+        self.content_layout.add_widget(input_box)
     
     def _create_results_section(self):
-        """Create results display section"""
-        # Results container that takes remaining space
-        result_container = BoxLayout(
-            orientation="vertical",
-            size_hint=(1, 1),  # Takes all remaining space
-            spacing=5
+        """Create results section with better display"""
+        # Results take the remaining space
+        self.result_panel = ResultDisplayPanel(
+            size_hint=(1, 1)  # Takes remaining space
         )
         
-        # Results label with scroll capability for long results
-        self.result_label = ResultLabel(
-            text="Results will appear here after analysis...",
-            size_hint=(1, 1),
-            text_size=(None, None)  # Will be updated dynamically
-        )
-        
-        result_container.add_widget(self.result_label)
-        self.content_layout.add_widget(result_container)
+        self.content_layout.add_widget(self.result_panel)
     
     def set_result_text(self, text: str, result_type: str = "info"):
-        """
-        Set result text with appropriate color coding
-        
-        Args:
-            text (str): Text to display
-            result_type (str): Type of result ('success', 'warning', 'error', 'info')
-        """
-        self.result_label.text = text
-        
-        if result_type in self.colors:
-            self.result_label.color = self.colors[result_type]
-        else:
-            self.result_label.color = self.colors['info']
+        """Set result text with proper formatting"""
+        self.result_panel.set_results(text, result_type)
     
     def set_loading_state(self, is_loading: bool = True):
-        """Set loading state for the interface"""
+        """Set loading state"""
         if is_loading:
-            self.set_result_text("📊 Analyzing stock data...", "info")
+            self.set_result_text("Analyzing stock data...\n\nPlease wait while we fetch and calculate risk metrics.", "info")
             self.analyze_button.text = "ANALYZING..."
             self.analyze_button.disabled = True
         else:
@@ -244,24 +356,23 @@ class StockAnalyzerLayout(FloatLayout):
             self.analyze_button.disabled = False
     
     def get_ticker_input(self) -> str:
-        """Get the current ticker input value"""
+        """Get ticker input"""
         return self.ticker_input.text.strip().upper()
     
     def clear_ticker_input(self):
-        """Clear the ticker input field"""
+        """Clear ticker input"""
         self.ticker_input.text = ""
     
     def bind_analyze_button(self, callback: Callable):
-        """Bind callback to analyze button"""
+        """Bind analyze button callback"""
         def on_button_press(instance):
-            # Animate button press
             instance.animate_press()
-            # Call the callback
             callback(instance)
         
         self.analyze_button.bind(on_press=on_button_press)
 
 
+# Additional improvements for better mobile/desktop responsiveness
 class ResponsiveLayout(BoxLayout):
     """Responsive layout that adapts to window size"""
     
@@ -274,48 +385,29 @@ class ResponsiveLayout(BoxLayout):
         """Update layout based on window size"""
         width, height = Window.size
         
-        # Adjust spacing and padding based on screen size
+        # Adjust font sizes and spacing based on screen size
         if width < 800:  # Mobile/small screen
-            self.padding = [20, 40, 20, 60]
-            self.spacing = 15
-        else:  # Desktop/large screen
-            self.padding = [40, 80, 40, 120]
-            self.spacing = 25
+            base_font_size = 14
+        elif width < 1200:  # Tablet
+            base_font_size = 16
+        else:  # Desktop
+            base_font_size = 18
+        
+        # You can add logic here to adjust font sizes dynamically
+        # This would require updating all child widgets
 
 
+# Factory functions
 def create_main_ui() -> StockAnalyzerLayout:
-    """
-    Factory function to create the main UI layout
-    
-    Returns:
-        StockAnalyzerLayout: Complete UI layout ready for use
-    """
+    """Create the main UI layout"""
     return StockAnalyzerLayout()
 
 
 def create_input_field(hint: str, size_hint: tuple = (1, 0.15)) -> ModernTextInput:
-    """
-    Create a styled input field
-    
-    Args:
-        hint (str): Hint text for the input
-        size_hint (tuple): Size hint for the input
-        
-    Returns:
-        ModernTextInput: Styled input field
-    """
+    """Create a styled input field"""
     return ModernTextInput(hint_text=hint, size_hint=size_hint)
 
 
 def create_action_button(text: str, size_hint: tuple = (1, 0.15)) -> ModernButton:
-    """
-    Create a styled action button
-    
-    Args:
-        text (str): Button text
-        size_hint (tuple): Size hint for the button
-        
-    Returns:
-        ModernButton: Styled button
-    """
+    """Create a styled action button"""
     return ModernButton(text=text, size_hint=size_hint)

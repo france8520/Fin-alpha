@@ -1,6 +1,6 @@
 """
-Risk Analysis Module
-Handles all stock data fetching and risk calculations
+Risk Analysis Module - Fixed Version
+Handles all stock data fetching and risk calculations with improved formatting
 """
 
 import yfinance as yf
@@ -126,9 +126,16 @@ class StockRiskAnalyzer:
             return "LOW", "low"
     
     def format_results(self, metrics: RiskMetrics) -> str:
-        """Format risk metrics into display string"""
+        """Format risk metrics into display string with better formatting"""
+        color_map = {
+            "high": "[color=#FF5252]",    # Red
+            "medium": "[color=#FFC107]",  # Amber
+            "low": "[color=#4CAF50]",     # Green
+        }
+        color_tag = color_map.get(metrics.risk_color, "")
+        end_tag = "[/color]" if color_tag else ""
         return f"""ANALYSIS RESULTS FOR {metrics.ticker}
-            
+
 Current Price: ${metrics.current_price:.2f}
 
 RISK METRICS:
@@ -138,7 +145,51 @@ RISK METRICS:
 • Maximum Drawdown: {metrics.max_drawdown:.1%}
 • Sharpe Ratio: {metrics.sharpe_ratio:.2f}
 
-Risk Level: {metrics.risk_level}"""
+Risk Level: {color_tag}{metrics.risk_level}{end_tag}"""
+
+    def format_results_detailed(self, metrics: RiskMetrics) -> str:
+        """Format risk metrics with detailed explanations"""
+        explanations = {
+            'volatility': "Measures how much the stock price fluctuates",
+            'var_95': "Maximum expected daily loss 95% of the time",
+            'var_99': "Maximum expected daily loss 99% of the time", 
+            'max_drawdown': "Largest peak-to-trough decline",
+            'sharpe_ratio': "Risk-adjusted return (higher is better)"
+        }
+        
+        return f"""DETAILED ANALYSIS FOR {metrics.ticker}
+
+Current Price: ${metrics.current_price:.2f}
+
+🔍 RISK METRICS EXPLAINED:
+
+Annual Volatility: {metrics.volatility:.1%}
+   {explanations['volatility']}
+
+Value at Risk (95%): {metrics.var_95:.2%} daily
+   {explanations['var_95']}
+
+Value at Risk (99%): {metrics.var_99:.2%} daily
+   {explanations['var_99']}
+
+Maximum Drawdown: {metrics.max_drawdown:.1%}
+   {explanations['max_drawdown']}
+
+Sharpe Ratio: {metrics.sharpe_ratio:.2f}
+   {explanations['sharpe_ratio']}
+
+Risk Level: {metrics.risk_level}
+
+{self._get_risk_interpretation(metrics.risk_level)}"""
+
+    def _get_risk_interpretation(self, risk_level: str) -> str:
+        """Get risk level interpretation"""
+        interpretations = {
+            "LOW": "This stock has relatively low volatility and is considered less risky.",
+            "MEDIUM": "This stock has moderate volatility. Consider your risk tolerance.",
+            "HIGH": "This stock is highly volatile and risky. Only suitable for risk-tolerant investors."
+        }
+        return interpretations.get(risk_level, "Risk level assessment unavailable.")
 
 
 # Convenience functions for easy usage
@@ -148,11 +199,29 @@ def analyze_stock_risk(ticker: str) -> Optional[RiskMetrics]:
     return analyzer.analyze_stock(ticker)
 
 
-def get_formatted_analysis(ticker: str) -> str:
+def get_formatted_analysis(ticker: str, detailed: bool = False) -> str:
     """Get formatted analysis results"""
     try:
         analyzer = StockRiskAnalyzer()
         metrics = analyzer.analyze_stock(ticker)
-        return analyzer.format_results(metrics)
+        
+        if detailed:
+            return analyzer.format_results_detailed(metrics)
+        else:
+            return analyzer.format_results(metrics)
     except Exception as e:
         return f"ERROR ANALYZING {ticker.upper()}\n\n{str(e)}\n\nPlease check the ticker symbol and try again."
+
+
+def get_risk_summary(ticker: str) -> str:
+    """Get a quick risk summary"""
+    try:
+        analyzer = StockRiskAnalyzer()
+        metrics = analyzer.analyze_stock(ticker)
+        
+        return f"""Quick Summary for {metrics.ticker}:
+Price: ${metrics.current_price:.2f}
+Volatility: {metrics.volatility:.1%}
+Risk: {metrics.risk_level}"""
+    except Exception as e:
+        return f"Unable to analyze {ticker}: {str(e)}"
