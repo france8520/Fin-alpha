@@ -28,8 +28,8 @@ class StockRiskApp(App):
         
     def build(self):
         """Build and return the main application widget"""
-        # Set window properties
-        Window.clearcolor = (0.05, 0.15, 0.35, 1)
+        # Set window properties - deep ocean night color
+        Window.clearcolor = (0.02, 0.08, 0.25, 1)
         Window.minimum_width = 400
         Window.minimum_height = 600
         
@@ -97,7 +97,7 @@ class StockRiskApp(App):
     
     def on_start(self):
         """Called when the app starts"""
-        welcome_text = """Welcome to Stock Risk Analyzer!
+        welcome_text = """Welcome to Fin-Alpha!
 
 How to use:
 1. Enter a stock ticker (e.g., AAPL, GOOGL, TSLA)

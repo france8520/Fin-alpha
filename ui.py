@@ -237,7 +237,7 @@ class StockAnalyzerLayout(FloatLayout):
         )
         
         self.title = TitleLabel(
-            text="Stock Risk Analyzer",
+            text="FIN-ALPHA",
             size_hint=(1, None),
             height='40dp'
         )
