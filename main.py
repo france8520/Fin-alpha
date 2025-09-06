@@ -51,85 +51,64 @@ class StockRiskApp(App):
         return self.main_layout
     
     def on_analyze_button_pressed(self, instance):
-        """Handle analyze button press with improved validation"""
-        # Get ticker from input
+        """Handle analyze button press with validation"""
         ticker = self.ui_layout.get_ticker_input()
         
-        # Enhanced validation
+        # Validation
         if not ticker:
-            self.ui_layout.set_result_text(
-                "Please enter a ticker symbol\n\nExample: AAPL, GOOGL, TSLA", 
-                "warning"
-            )
+            self.ui_layout.set_result_text("Please enter a ticker symbol\n\nExample: AAPL, GOOGL, TSLA", "warning")
             return
         
-        # Basic ticker format validation
         if len(ticker) < 1 or len(ticker) > 10:
-            self.ui_layout.set_result_text(
-                f"Invalid ticker format: {ticker}\n\nTicker symbols should be 1-10 characters long.", 
-                "warning"
-            )
+            self.ui_layout.set_result_text(f"Invalid ticker: {ticker}\n\nShould be 1-10 characters.", "warning")
             return
         
-        # Set loading state
+        # Start analysis
         self.ui_layout.set_loading_state(True)
-        
-        # Schedule the analysis to run after UI update
         Clock.schedule_once(lambda dt: self._perform_analysis(ticker), 0.1)
     
     def _perform_analysis(self, ticker: str):
-        """Perform the actual stock analysis with enhanced error handling"""
+        """Perform stock analysis with error handling"""
         try:
-            # Show progress
-            self.ui_layout.set_result_text(
-                f"Fetching data for {ticker}...\n\nThis may take a few seconds.", 
-                "info"
-            )
+            self.ui_layout.set_result_text(f"Fetching data for {ticker}...\n\nPlease wait.", "info")
             
             # Analyze the stock
             metrics = self.risk_analyzer.analyze_stock(ticker)
             
             if metrics:
-                # Format and display results
                 result_text = self.risk_analyzer.format_results(metrics)
                 self.ui_layout.set_result_text(result_text, "success")
             else:
                 self.ui_layout.set_result_text(
-                    f"Unable to analyze {ticker}\n\nThe ticker may not exist or data is unavailable.\nPlease try a different symbol.",
+                    f"Unable to analyze {ticker}\n\nTicker may not exist. Try a different symbol.",
                     "error"
                 )
                 
         except ValueError as ve:
-            # Handle specific validation errors
-            error_message = f"VALIDATION ERROR\n\nTicker: {ticker}\nIssue: {str(ve)}\n\nSuggestions:\n• Check if ticker symbol is correct\n• Try a more popular stock (e.g., AAPL, GOOGL)\n• Ensure the company is publicly traded"
-            self.ui_layout.set_result_text(error_message, "error")
+            error_msg = f"ERROR: {ticker}\n\n{str(ve)}\n\nTry: AAPL, GOOGL, MSFT"
+            self.ui_layout.set_result_text(error_msg, "error")
             
         except Exception as e:
-            # Handle general analysis errors
-            error_type = type(e).__name__
-            error_message = f"ERROR ANALYZING {ticker}\n\nError Type: {error_type}\nDetails: {str(e)}\n\nTroubleshooting:\n• Check your internet connection\n• Verify the ticker symbol\n• Try again in a few moments"
-            self.ui_layout.set_result_text(error_message, "error")
+            error_msg = f"ERROR: {ticker}\n\n{str(e)}\n\nCheck internet connection and try again."
+            self.ui_layout.set_result_text(error_msg, "error")
         
         finally:
-            # Always reset loading state
             self.ui_layout.set_loading_state(False)
     
     def on_start(self):
         """Called when the app starts"""
-        # Show welcome message
         welcome_text = """Welcome to Stock Risk Analyzer!
 
 How to use:
-1. Enter a stock ticker symbol (e.g., AAPL, GOOGL, TSLA)
-2. Click "ANALYZE STOCK" 
-3. View detailed risk metrics and analysis
+1. Enter a stock ticker (e.g., AAPL, GOOGL, TSLA)
+2. Click "ANALYZE STOCK"
+3. View risk metrics and analysis
 
 Tips:
 • Use official ticker symbols
-• Most US stocks work well
-• Analysis uses 1 year of historical data
+• Analysis uses 1 year of data
 
-Ready to analyze your first stock? Enter a ticker above!"""
+Ready? Enter a ticker above!"""
         
         self.ui_layout.set_result_text(welcome_text, "info")
     

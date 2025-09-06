@@ -64,7 +64,7 @@ class StockRiskAnalyzer:
     
     def _fetch_stock_data(self, ticker: str, period: str) -> Any:
         """Fetch stock data from Yahoo Finance"""
-        data = yf.download(ticker, period=period, progress=False)
+        data = yf.download(ticker, period=period, progress=False, auto_adjust=True)
         
         if data.empty:
             raise ValueError("No data found for this ticker")
@@ -82,9 +82,12 @@ class StockRiskAnalyzer:
     
     def _calculate_risk_metrics(self, ticker: str, data: Any, returns: np.ndarray) -> RiskMetrics:
         """Calculate all risk metrics"""
-        # Basic metrics
-        current_price = float(data["Close"].iloc[-1])
-        volatility = float(returns.std() * np.sqrt(252))  # Annualized
+        # Basic metrics - using .item() to avoid deprecation warnings
+        current_price = data["Close"].iloc[-1]
+        if hasattr(current_price, 'item'):
+            current_price = current_price.item()
+        
+        volatility = (returns.std() * np.sqrt(252)).item()  # Annualized
         
         # Value at Risk calculations
         var_95 = float(np.percentile(returns, 5))  # 5th percentile
@@ -94,12 +97,12 @@ class StockRiskAnalyzer:
         cumulative_returns = (returns + 1).cumprod()
         peak = cumulative_returns.cummax()
         drawdown = (peak - cumulative_returns) / peak
-        max_drawdown = float(drawdown.max())
+        max_drawdown = drawdown.max().item()
         
         # Sharpe ratio (assuming risk-free rate of 0)
-        annual_return = float(returns.mean() * 252)
-        annual_volatility = float(returns.std() * np.sqrt(252))
-        sharpe_ratio = annual_return / annual_volatility if annual_volatility != 0 else 0
+        annual_return = (returns.mean() * 252).item()
+        annual_volatility = (returns.std() * np.sqrt(252)).item()
+        sharpe_ratio = annual_return / annual_volatility if annual_volatility > 0 else 0
         
         # Determine risk level
         risk_level, risk_color = self._determine_risk_level(volatility)
@@ -126,14 +129,7 @@ class StockRiskAnalyzer:
             return "LOW", "low"
     
     def format_results(self, metrics: RiskMetrics) -> str:
-        """Format risk metrics into display string with better formatting"""
-        color_map = {
-            "high": "[color=#FF5252]",    # Red
-            "medium": "[color=#FFC107]",  # Amber
-            "low": "[color=#4CAF50]",     # Green
-        }
-        color_tag = color_map.get(metrics.risk_color, "")
-        end_tag = "[/color]" if color_tag else ""
+        """Format risk metrics with better visibility"""
         return f"""ANALYSIS RESULTS FOR {metrics.ticker}
 
 Current Price: ${metrics.current_price:.2f}
@@ -145,7 +141,7 @@ RISK METRICS:
 • Maximum Drawdown: {metrics.max_drawdown:.1%}
 • Sharpe Ratio: {metrics.sharpe_ratio:.2f}
 
-Risk Level: {color_tag}{metrics.risk_level}{end_tag}"""
+Risk Level: {metrics.risk_level}"""
 
     def format_results_detailed(self, metrics: RiskMetrics) -> str:
         """Format risk metrics with detailed explanations"""

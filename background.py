@@ -32,41 +32,16 @@ class BeautifulWaveWidget(Widget):
         self.time = 0
         self.speed = 0.02  # Animation speed
         
-        # Wave configuration - multiple layers for depth
+        # Simplified wave configuration for better performance
         self.waves = [
-            SmoothWave(
-                color=(0.2, 0.4, 0.9),   # Deep blue
-                amplitude=80,
-                frequency=0.008,
-                phase=0,
-                opacity=0.9
-            ),
-            SmoothWave(
-                color=(0.3, 0.5, 0.95),  # Medium blue  
-                amplitude=60,
-                frequency=0.01,
-                phase=1.5,
-                opacity=0.7
-            ),
-            SmoothWave(
-                color=(0.4, 0.6, 1.0),   # Light blue
-                amplitude=40,
-                frequency=0.012,
-                phase=3,
-                opacity=0.5
-            ),
-            SmoothWave(
-                color=(0.5, 0.7, 1.0),   # Very light blue
-                amplitude=25,
-                frequency=0.015,
-                phase=4.5,
-                opacity=0.3
-            )
+            SmoothWave((0.2, 0.4, 0.9), 60, 0.008, 0, 0.8),     # Main wave
+            SmoothWave((0.3, 0.5, 0.95), 40, 0.01, 1.5, 0.6),   # Second wave
+            SmoothWave((0.4, 0.6, 1.0), 25, 0.012, 3, 0.4)      # Light wave
         ]
         
-        # Start animation
+        # Start animation with better performance
         self.bind(size=self._update_waves, pos=self._update_waves)
-        Clock.schedule_interval(self._animate, 1/60.0)  # 60 FPS
+        Clock.schedule_interval(self._animate, 1/30.0)  # 30 FPS for performance
     
     def _animate(self, dt):
         """Update animation time and redraw waves"""
