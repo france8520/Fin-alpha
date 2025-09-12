@@ -34,7 +34,7 @@ class StockRiskApp(App):
         Window.minimum_height = 600
         
         # Set title
-        self.title = "Stock Risk Analyzer"
+        self.title = "Fin-Alpha"
         
         # Create animated background
         self.main_layout = create_animated_background()
@@ -76,8 +76,8 @@ class StockRiskApp(App):
             metrics = self.risk_analyzer.analyze_stock(ticker)
             
             if metrics:
-                result_text = self.risk_analyzer.format_results(metrics)
-                self.ui_layout.set_result_text(result_text, "success")
+                result_text, risk_style = self.risk_analyzer.format_results(metrics)
+                self.ui_layout.set_result_text(result_text, risk_style)  # Use the returned style
             else:
                 self.ui_layout.set_result_text(
                     f"Unable to analyze {ticker}\n\nTicker may not exist. Try a different symbol.",
@@ -97,20 +97,20 @@ class StockRiskApp(App):
     
     def on_start(self):
         """Called when the app starts"""
-        welcome_text = """🎯 Ready to analyze stocks!
+        welcome_text = """Ready to analyze stocks!
 
-📊 How it works:
+How it works:
 • Enter any stock ticker (AAPL, GOOGL, TSLA, etc.)
 • Tap ANALYZE STOCK button
 • Get comprehensive risk analysis
 
-✨ Features:
+Features:
 • Real-time market data
 • Advanced risk metrics
 • 1-year historical analysis
 • Easy-to-read results
 
-💡 Start by entering a ticker symbol above!"""
+Start by entering a ticker symbol above!"""
         
         self.ui_layout.set_result_text(welcome_text, "info")
     

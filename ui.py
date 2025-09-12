@@ -83,7 +83,8 @@ class StockAnalyzerLayout(BoxLayout):
     """SIMPLE, WORKING layout - no fancy stuff"""
     
     def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', **kwargs)
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
         self.padding = [50, 50, 50, 50]
         self.spacing = 30
         self.create_ui()
@@ -91,7 +92,7 @@ class StockAnalyzerLayout(BoxLayout):
     def create_ui(self):
         # Title
         title = Label(
-            text="Stock Analyzer",
+            text="Fin Alpha",
             font_size='28sp',
             bold=True,
             color=(1, 1, 1, 1),
@@ -139,16 +140,23 @@ class StockAnalyzerLayout(BoxLayout):
             padding=[20, 20, 20, 20]
         )
         
-        self.result_scroll = ScrollView()
-        self.result_label = Label(
-            text="🎯 Ready to analyze stocks!\n\n📊 How it works:\n• Enter any stock ticker (AAPL, GOOGL, TSLA, etc.)\n• Tap ANALYZE STOCK button\n• Get comprehensive risk analysis\n\n✨ Features:\n• Real-time market data\n• Advanced risk metrics\n• 1-year historical analysis\n• Easy-to-read results\n\n💡 Start by entering a ticker symbol above!",
-            markup=True,
-            text_size=(None, None),
-            halign='left',
-            valign='top',
-            color=(0.2, 0.8, 0.3, 1)  # Green color
+        # --- Scrolling result text area ---
+        self.result_scroll = ScrollView(
+            size_hint=(1, 0.5),  # Adjust height as needed
+            bar_width=8,
+            scroll_type=['bars', 'content'],
+            do_scroll_x=False,
+            do_scroll_y=True
         )
-        
+        self.result_label = Label(
+            text="",
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+            markup=True,
+            padding=(10, 10)
+        )
+        self.result_label.bind(texture_size=self._update_label_height)
         self.result_scroll.add_widget(self.result_label)
         results_card.add_widget(self.result_scroll)
         
@@ -158,35 +166,26 @@ class StockAnalyzerLayout(BoxLayout):
         self.add_widget(input_card)
         self.add_widget(results_card)
     
-    def set_result_text(self, text: str, result_type: str = "info"):
-        # Determine color based on risk level and result type
-        color = self._get_result_color(text, result_type)
-        self.result_label.color = color
+    def _update_label_height(self, instance, value):
+        # Dynamically adjust label height for scrolling
+        self.result_label.height = self.result_label.texture_size[1]
+
+    def set_result_text(self, text, style="info"):
         self.result_label.text = text
-        # Update text size
-        self.result_label.text_size = (self.result_scroll.width - 20, None)
-    
-    def _get_result_color(self, text: str, result_type: str):
-        """Get color based on risk level or result type"""
-        # Check for risk level in text
-        if "Risk Level:" in text:
-            if "HIGH" in text:
-                return (0.9, 0.2, 0.2, 1)  # Red for HIGH risk
-            elif "MEDIUM" in text:
-                return (0.9, 0.6, 0.1, 1)  # Orange for MEDIUM risk
-            elif "LOW" in text:
-                return (0.2, 0.8, 0.3, 1)  # Green for LOW risk
-        
-        # Default colors based on result type
-        color_map = {
-            'success': (0.2, 0.8, 0.3, 1),  # Green for successful analysis
-            'error': (0.9, 0.2, 0.2, 1),    # Red for errors
-            'warning': (0.9, 0.6, 0.1, 1),  # Orange for warnings
-            'loading': (0.5, 0.7, 0.9, 1),  # Light blue for loading
-            'info': (0.2, 0.8, 0.3, 1)      # Green as default (instead of blue)
-        }
-        
-        return color_map.get(result_type, color_map['info'])
+
+        # Handle both text-based and style-based risk levels
+        if style == "risk-high" or "Risk Level: HIGH" in text:
+            self.result_label.color = (1, 0.1, 0.1, 1)  # Light Red
+        elif style == "risk-medium" or "Risk Level: MEDIUM" in text:
+            self.result_label.color = (1, 0.8, 0.2, 1)  # Orange
+        elif style == "risk-low" or "Risk Level: LOW" in text:
+            self.result_label.color = (0.1, 1, 0.1, 1)  # Light Green
+        elif style == "error":
+            self.result_label.color = (1, 0, 0, 1)      # Red
+        elif style == "warning":
+            self.result_label.color = (1, 1, 0, 1)      # Yellow
+        else:
+            self.result_label.color = (1, 1, 1, 1)      # Default (White)
     
     def set_loading_state(self, is_loading: bool = True):
         if is_loading:

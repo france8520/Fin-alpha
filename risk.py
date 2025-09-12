@@ -128,20 +128,24 @@ class StockRiskAnalyzer:
         else:
             return "LOW", "low"
     
-    def format_results(self, metrics: RiskMetrics) -> str:
-        """Format risk metrics with better visibility"""
-        return f"""ANALYSIS RESULTS FOR {metrics.ticker}
-
-Current Price: ${metrics.current_price:.2f}
-
-RISK METRICS:
-• Annual Volatility: {metrics.volatility:.1%}
-• Value at Risk (95%): {metrics.var_95:.2%} daily
-• Value at Risk (99%): {metrics.var_99:.2%} daily
-• Maximum Drawdown: {metrics.max_drawdown:.1%}
-• Sharpe Ratio: {metrics.sharpe_ratio:.2f}
-
-Risk Level: {metrics.risk_level}"""
+    def format_results(self, metrics):
+        """Format risk metrics with consistent risk level"""
+        # Convert RiskMetrics object to needed values
+        volatility = metrics.volatility * 100  # Convert to percentage
+        
+        # Use consistent risk level determination
+        risk_style = "risk-high" if volatility > 50 else "risk-medium" if volatility > 30 else "risk-low"
+        
+        result_text = (
+            "RISK METRICS:\n"
+            f"• Annual Volatility: {volatility:.1f}%\n"
+            f"• Value at Risk (95%): {metrics.var_95 * 100:.2f}% daily\n"
+            f"• Value at Risk (99%): {metrics.var_99 * 100:.2f}% daily\n"
+            f"• Maximum Drawdown: {metrics.max_drawdown * 100:.1f}%\n"
+            f"• Sharpe Ratio: {metrics.sharpe_ratio:.2f}\n\n"
+            f"Risk Level: {metrics.risk_level}"
+        )
+        return result_text, risk_style  # Return both text and style
 
     def format_results_detailed(self, metrics: RiskMetrics) -> str:
         """Format risk metrics with detailed explanations"""
