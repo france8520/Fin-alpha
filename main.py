@@ -97,18 +97,20 @@ class StockRiskApp(App):
     
     def on_start(self):
         """Called when the app starts"""
-        welcome_text = """Welcome to Fin-Alpha!
+        welcome_text = """🎯 Ready to analyze stocks!
 
-How to use:
-1. Enter a stock ticker (e.g., AAPL, GOOGL, TSLA)
-2. Click "ANALYZE STOCK"
-3. View risk metrics and analysis
+📊 How it works:
+• Enter any stock ticker (AAPL, GOOGL, TSLA, etc.)
+• Tap ANALYZE STOCK button
+• Get comprehensive risk analysis
 
-Tips:
-• Use official ticker symbols
-• Analysis uses 1 year of data
+✨ Features:
+• Real-time market data
+• Advanced risk metrics
+• 1-year historical analysis
+• Easy-to-read results
 
-Ready? Enter a ticker above!"""
+💡 Start by entering a ticker symbol above!"""
         
         self.ui_layout.set_result_text(welcome_text, "info")
     
