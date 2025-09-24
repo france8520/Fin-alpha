@@ -7,8 +7,10 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.image import Image
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
+from kivy.properties import ObjectProperty
 
 
 class SimpleCard(BoxLayout):
@@ -85,19 +87,41 @@ class StockAnalyzerLayout(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
-        self.padding = [50, 50, 50, 50]
-        self.spacing = 30
+        self.padding = [50, 20, 50, 20]  # Reduced top and bottom padding
+        self.spacing = 15  # Reduced spacing between elements
+        # Bind to window size changes to handle scaling
+        Window.bind(on_resize=self.on_window_resize)
         self.create_ui()
     
     def create_ui(self):
+        # Logo Image - Using FloatLayout for better positioning
+        from kivy.uix.floatlayout import FloatLayout
+        
+        self.logo_container = FloatLayout(
+            size_hint=(1, None),
+            height=120
+        )
+        
+        self.logo_image = Image(
+            source='Fin.png',
+            allow_stretch=True,
+            keep_ratio=True,
+            size_hint=(None, None),
+            size=(100, 100),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5}
+        )
+        
+        self.logo_container.add_widget(self.logo_image)
+        
         # Title
         title = Label(
             text="Fin Alpha",
-            font_size='28sp',
+            font_size='30sp',  # Increased font size
             bold=True,
             color=(1, 1, 1, 1),
             size_hint=(1, None),
-            height=50
+            height=40,  # Reduced height
+            pos_hint={'center_x': 0.5}  # Center alignment
         )
         
         # Subtitle
@@ -106,16 +130,18 @@ class StockAnalyzerLayout(BoxLayout):
             font_size='16sp',
             color=(1, 1, 1, 0.8),
             size_hint=(1, None),
-            height=30
+            height=25,  # Reduced height
+            pos_hint={'center_x': 0.5}  # Center alignment
         )
         
         # Input card
         input_card = SimpleCard(
             orientation='vertical',
             size_hint=(1, None),
-            height=120,
-            padding=[20, 15, 20, 15],
-            spacing=10
+            height=110,  # Slightly reduced height
+            padding=[20, 10, 20, 10],  # Reduced padding
+            spacing=8,  # Reduced spacing
+            pos_hint={'center_x': 0.5}  # Center alignment
         )
         
         self.ticker_input = SimpleTextInput(
@@ -142,11 +168,16 @@ class StockAnalyzerLayout(BoxLayout):
         
         # --- Scrolling result text area ---
         self.result_scroll = ScrollView(
-            size_hint=(1, 0.5),  # Adjust height as needed
-            bar_width=8,
-            scroll_type=['bars', 'content'],
+            size_hint=(1, 1),  # Changed from 0.5 to 1 to fill the available space
+            bar_width=12,  # Increased bar width for better visibility
+            bar_color=[0.9, 0.9, 0.9, 1],  # Brighter scrollbar color for better visibility
+            bar_inactive_color=[0.7, 0.7, 0.7, 0.8],  # More visible when inactive
+            scroll_type=['bars'],  # Always show scrollbars
             do_scroll_x=False,
-            do_scroll_y=True
+            do_scroll_y=True,
+            bar_pos_y='right',
+            bar_margin=4,
+            effect_cls='ScrollEffect'  # Smoother scrolling effect
         )
         self.result_label = Label(
             text="",
@@ -161,10 +192,36 @@ class StockAnalyzerLayout(BoxLayout):
         results_card.add_widget(self.result_scroll)
         
         # Add everything
+        self.add_widget(self.logo_container)
         self.add_widget(title)
         self.add_widget(subtitle)
         self.add_widget(input_card)
         self.add_widget(results_card)
+        
+        # Initial scaling of the logo
+        self.scale_logo()
+    
+    def on_window_resize(self, instance, width, height):
+        """Handle window resize events to scale the logo appropriately"""
+        self.scale_logo()
+        
+    def scale_logo(self):
+        """Scale the logo based on window size"""
+        window_width = Window.width
+        
+        # Scale logo based on window width
+        if window_width <= 400:  # Minimal screen
+            logo_size = 80
+            self.logo_container.height = 80
+        elif window_width >= 1200:  # Full screen
+            logo_size = 150
+            self.logo_container.height = 150
+        else:  # Proportional scaling for sizes in between
+            scale_factor = (window_width - 400) / 800  # 0 to 1 for width 400 to 1200
+            logo_size = 80 + (70 * scale_factor)  # Scale from 80 to 150
+            self.logo_container.height = logo_size
+            
+        self.logo_image.size = (logo_size, logo_size)
     
     def _update_label_height(self, instance, value):
         # Dynamically adjust label height for scrolling
@@ -191,10 +248,14 @@ class StockAnalyzerLayout(BoxLayout):
         if is_loading:
             self.analyze_button.text = "ANALYZING..."
             self.analyze_button.disabled = True
-            self.set_result_text("⏳ Analyzing stock data...\n\nFetching market data and calculating risk metrics.")
+            self.set_result_text("Analyzing stock data...\n\nFetching market data and calculating risk metrics.")
         else:
             self.analyze_button.text = "ANALYZE STOCK"
             self.analyze_button.disabled = False
+    
+    def bind_analyze_button(self, callback):
+        """Bind the analyze button to a callback function"""
+        self.analyze_button.bind(on_press=callback)
     
     def get_ticker_input(self) -> str:
         return self.ticker_input.text.strip().upper()

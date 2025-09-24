@@ -161,7 +161,7 @@ class StockRiskAnalyzer:
 
 Current Price: ${metrics.current_price:.2f}
 
-🔍 RISK METRICS EXPLAINED:
+RISK METRICS EXPLAINED:
 
 Annual Volatility: {metrics.volatility:.1%}
    {explanations['volatility']}
