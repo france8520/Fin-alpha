@@ -2,6 +2,26 @@
 Main Application File - Fixed Version
 Orchestrates the Stock Risk Analyzer app using modular components with improved error handling
 """
+import sys
+import subprocess
+import pkg_resources
+
+# Auto-install required packages
+def install_missing_packages():
+    required = {'kivy', 'yfinance', 'numpy', 'setuptools'}
+    try:
+        import pkg_resources
+    except ImportError:
+        print("Installing setuptools for pkg_resources...")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'setuptools'])
+        import pkg_resources
+    installed = {pkg.key for pkg in pkg_resources.working_set}
+    missing = required - installed
+    if missing:
+        print(f"Installing missing packages: {', '.join(missing)}")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', *missing])
+
+install_missing_packages()
 
 from kivy.app import App
 from kivy.clock import Clock
