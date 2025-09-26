@@ -2,6 +2,7 @@
 Simple, Clean UI Components
 """
 
+from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
@@ -11,7 +12,7 @@ from kivy.uix.image import Image
 from kivy.graphics import Color, RoundedRectangle
 from kivy.core.window import Window
 from kivy.properties import ObjectProperty
-
+from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 
 class SimpleCard(BoxLayout):
     """Simple card with background"""
@@ -81,18 +82,64 @@ class SimpleButton(Button):
         self._update_bg()
 
 
+class DetailScreen(Screen):
+    """Detailed information screen"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical', padding=[20, 20])
+        
+        # Back button
+        self.back_button = SimpleButton(
+            text="← Back",
+            size_hint=(None, None),
+            size=(100, 40),
+            pos_hint={'x': 0}
+        )
+        
+        # Detailed results
+        self.detail_scroll = ScrollView(
+            size_hint=(1, 1),
+            bar_width=12,
+            do_scroll_x=False
+        )
+        self.detail_label = Label(
+            text="",
+            size_hint_y=None,
+            halign="left",
+            valign="top",
+            markup=True,
+            padding=(10, 10)
+        )
+        self.detail_label.bind(texture_size=lambda *x: setattr(self.detail_label, 'height', self.detail_label.texture_size[1]))
+        
+        self.detail_scroll.add_widget(self.detail_label)
+        self.layout.add_widget(self.back_button)
+        self.layout.add_widget(self.detail_scroll)
+        self.add_widget(self.layout)
+
+class MainScreen(Screen):
+    """Main screen with basic risk analysis"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = StockAnalyzerLayout()
+        self.add_widget(self.layout)
+
 class StockAnalyzerLayout(BoxLayout):
-    """SIMPLE, WORKING layout - no fancy stuff"""
-    
+    """Modified layout with screen management"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
-        self.padding = [50, 20, 50, 20]  # Reduced top and bottom padding
-        self.spacing = 15  # Reduced spacing between elements
-        # Bind to window size changes to handle scaling
+        self.padding = [50, 20, 50, 20]
+        self.spacing = 15
+        
+        # Create UI elements
         Window.bind(on_resize=self.on_window_resize)
         self.create_ui()
-    
+        
+        # Initially hide More Info button
+        self.more_info_button.opacity = 0
+        self.more_info_button.disabled = True
+
     def create_ui(self):
         # Logo Image - Using FloatLayout for better positioning
         from kivy.uix.floatlayout import FloatLayout
@@ -165,31 +212,42 @@ class StockAnalyzerLayout(BoxLayout):
             size_hint=(1, 1),
             padding=[20, 20, 20, 20]
         )
-        
-        # --- Scrolling result text area ---
-        self.result_scroll = ScrollView(
-            size_hint=(1, 1),  # Changed from 0.5 to 1 to fill the available space
-            bar_width=12,  # Increased bar width for better visibility
-            bar_color=[0.9, 0.9, 0.9, 1],  # Brighter scrollbar color for better visibility
-            bar_inactive_color=[0.7, 0.7, 0.7, 0.8],  # More visible when inactive
-            scroll_type=['bars'],  # Always show scrollbars
+
+        # Results scroll view
+        self.results_scroll = ScrollView(
+            size_hint=(1, 1),
+            bar_width=8,
             do_scroll_x=False,
-            do_scroll_y=True,
-            bar_pos_y='right',
-            bar_margin=4,
-            effect_cls='ScrollEffect'  # Smoother scrolling effect
+            scroll_y=1  # Start at top
         )
+
+        # Basic result display
         self.result_label = Label(
             text="",
+            size_hint=(1, None),
             size_hint_y=None,
-            halign="left",
+            halign="center",
             valign="top",
-            markup=True,
-            padding=(10, 10)
+            padding=[10, 10],
+            text_size=(None, None)  # Allow wrapping
         )
-        self.result_label.bind(texture_size=self._update_label_height)
-        self.result_scroll.add_widget(self.result_label)
-        results_card.add_widget(self.result_scroll)
+        self.result_label.bind(texture_size=lambda *x: setattr(self.result_label, 'height', self.result_label.texture_size[1] + 20))  # + padding
+
+        self.results_scroll.add_widget(self.result_label)
+
+        # More Info button
+        self.more_info_button = SimpleButton(
+            text="More Information",
+            size_hint=(None, None),
+            size=(200, 50),
+            pos_hint={'center_x': 0.5},
+            opacity=0,  # Start hidden
+            disabled=True  # Start disabled
+        )
+        self.more_info_button.bind(on_press=self.show_details)
+        
+        results_card.add_widget(self.results_scroll)
+        results_card.add_widget(self.more_info_button)
         
         # Add everything
         self.add_widget(self.logo_container)
@@ -222,28 +280,32 @@ class StockAnalyzerLayout(BoxLayout):
             self.logo_container.height = logo_size
             
         self.logo_image.size = (logo_size, logo_size)
-    
-    def _update_label_height(self, instance, value):
-        # Dynamically adjust label height for scrolling
-        self.result_label.height = self.result_label.texture_size[1]
 
     def set_result_text(self, text, style="info"):
-        self.result_label.text = text
-
-        # Handle both text-based and style-based risk levels
-        if style == "risk-high" or "Risk Level: HIGH" in text:
-            self.result_label.color = (1, 0.1, 0.1, 1)  # Light Red
-        elif style == "risk-medium" or "Risk Level: MEDIUM" in text:
-            self.result_label.color = (1, 0.8, 0.2, 1)  # Orange
-        elif style == "risk-low" or "Risk Level: LOW" in text:
-            self.result_label.color = (0.1, 1, 0.1, 1)  # Light Green
-        elif style == "error":
-            self.result_label.color = (1, 0, 0, 1)      # Red
-        elif style == "warning":
-            self.result_label.color = (1, 1, 0, 1)      # Yellow
+        """Modified to show simplified results and handle More Info button"""
+        self.detailed_results = text  # Store full results
+        
+        # Show/hide More Info button based on style
+        show_more_info = style not in ["error", "warning", "info"]
+        self.more_info_button.opacity = 1 if show_more_info else 0
+        self.more_info_button.disabled = not show_more_info
+        
+        # Simplified result display
+        if "Risk Level: HIGH" in text:
+            simple_text = "Risk Level: HIGH"
+            self.result_label.color = (1, 0.1, 0.1, 1)
+        elif "Risk Level: MEDIUM" in text:
+            simple_text = "Risk Level: MEDIUM"
+            self.result_label.color = (1, 0.8, 0.2, 1)
+        elif "Risk Level: LOW" in text:
+            simple_text = "Risk Level: LOW"
+            self.result_label.color = (0.1, 1, 0.1, 1)
         else:
-            self.result_label.color = (1, 1, 1, 1)      # Default (White)
-    
+            simple_text = text
+            self.result_label.color = (1, 1, 1, 1)
+        
+        self.result_label.text = simple_text
+
     def set_loading_state(self, is_loading: bool = True):
         if is_loading:
             self.analyze_button.text = "ANALYZING..."
@@ -263,7 +325,32 @@ class StockAnalyzerLayout(BoxLayout):
     def bind_analyze_button(self, callback):
         self.analyze_button.bind(on_press=callback)
 
+    def show_details(self, instance):
+        """Show detailed analysis screen"""
+        # Get reference to screen manager
+        app = App.get_running_app()
+        screen_manager = app.screen_manager
+        
+        # Set detailed text and switch screens
+        detail_screen = screen_manager.get_screen('detail')
+        detail_screen.detail_label.text = self.detailed_results
+        screen_manager.current = 'detail'
 
-# Factory function
-def create_main_ui() -> StockAnalyzerLayout:
-    return StockAnalyzerLayout()
+def create_main_ui():
+    """Create the main screen manager with all screens"""
+    sm = ScreenManager(transition=SlideTransition())
+    
+    # Create screens
+    main_screen = MainScreen(name='main')
+    detail_screen = DetailScreen(name='detail')
+    
+    # Add screens to manager
+    sm.add_widget(main_screen)
+    sm.add_widget(detail_screen)
+    
+    # Set up back button binding
+    detail_screen.back_button.bind(
+        on_press=lambda x: setattr(sm, 'current', 'main')
+    )
+    
+    return sm

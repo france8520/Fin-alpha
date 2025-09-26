@@ -26,10 +26,15 @@ install_missing_packages()
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.config import Config
+
+# Set minimum window size
+Config.set('graphics', 'minimum_width', '400')
+Config.set('graphics', 'minimum_height', '600')
 
 # Import our custom modules
 from risk import StockRiskAnalyzer
-from ui import StockAnalyzerLayout
+from ui import StockAnalyzerLayout, create_main_ui  # Add create_main_ui to imports
 from background import create_animated_background
 
 
@@ -44,76 +49,79 @@ class StockRiskApp(App):
         
         # UI components (will be set in build method)
         self.main_layout = None
-        self.ui_layout = None
-        
+        self.screen_manager = None
+    
     def build(self):
         """Build and return the main application widget"""
-        # Set window properties - deep ocean night color
+        # Set window properties
         Window.clearcolor = (0.02, 0.08, 0.25, 1)
-        Window.minimum_width = 400
-        Window.minimum_height = 600
         
-        # Set title
         self.title = "Fin-Alpha"
         
         # Create animated background
         self.main_layout = create_animated_background()
         
-        # Create main UI layout
-        self.ui_layout = StockAnalyzerLayout()
+        # Create screen manager with all screens
+        self.screen_manager = create_main_ui()
         
-        # Bind the analyze button to our callback
-        self.ui_layout.bind_analyze_button(self.on_analyze_button_pressed)
+        # Get reference to main screen's layout for button binding
+        main_screen = self.screen_manager.get_screen('main')
+        main_screen.layout.bind_analyze_button(self.on_analyze_button_pressed)
         
-        # Add UI to main layout
-        self.main_layout.add_widget(self.ui_layout)
+        # Add screen manager to main layout
+        self.main_layout.add_widget(self.screen_manager)
         
         return self.main_layout
     
     def on_analyze_button_pressed(self, instance):
         """Handle analyze button press with validation"""
-        ticker = self.ui_layout.get_ticker_input()
+        main_screen = self.screen_manager.get_screen('main')
+        ticker = main_screen.layout.get_ticker_input()
         
         # Validation
         if not ticker:
-            self.ui_layout.set_result_text("Please enter a ticker symbol\n\nExample: AAPL, GOOGL, TSLA", "warning")
+            main_screen.layout.set_result_text(
+                "Please enter a ticker symbol\n\nExample: AAPL, GOOGL, TSLA",
+                "warning"
+            )
             return
         
         if len(ticker) < 1 or len(ticker) > 10:
-            self.ui_layout.set_result_text(f"Invalid ticker: {ticker}\n\nShould be 1-10 characters.", "warning")
+            main_screen.layout.set_result_text(f"Invalid ticker: {ticker}\n\nShould be 1-10 characters.", "warning")
             return
         
         # Start analysis
-        self.ui_layout.set_loading_state(True)
+        main_screen.layout.set_loading_state(True)
         Clock.schedule_once(lambda dt: self._perform_analysis(ticker), 0.1)
     
     def _perform_analysis(self, ticker: str):
         """Perform stock analysis with error handling"""
         try:
-            self.ui_layout.set_result_text(f"Fetching data for {ticker}...\n\nPlease wait.", "info")
+            main_screen = self.screen_manager.get_screen('main')
+            main_screen.layout.set_result_text(f"Fetching data for {ticker}...\n\nPlease wait.", "info")
             
             # Analyze the stock
             metrics = self.risk_analyzer.analyze_stock(ticker)
             
             if metrics:
                 result_text, risk_style = self.risk_analyzer.format_results(metrics)
-                self.ui_layout.set_result_text(result_text, risk_style)  # Use the returned style
+                main_screen.layout.set_result_text(result_text, risk_style)
             else:
-                self.ui_layout.set_result_text(
+                main_screen.layout.set_result_text(
                     f"Unable to analyze {ticker}\n\nTicker may not exist. Try a different symbol.",
                     "error"
                 )
                 
         except ValueError as ve:
             error_msg = f"ERROR: {ticker}\n\n{str(ve)}\n\nTry: AAPL, GOOGL, MSFT"
-            self.ui_layout.set_result_text(error_msg, "error")
+            main_screen.layout.set_result_text(error_msg, "error")
             
         except Exception as e:
             error_msg = f"ERROR: {ticker}\n\n{str(e)}\n\nCheck internet connection and try again."
-            self.ui_layout.set_result_text(error_msg, "error")
+            main_screen.layout.set_result_text(error_msg, "error")
         
         finally:
-            self.ui_layout.set_loading_state(False)
+            main_screen.layout.set_loading_state(False)
     
     def on_start(self):
         """Called when the app starts"""
@@ -132,7 +140,9 @@ Features:
 
 Start by entering a ticker symbol above!"""
         
-        self.ui_layout.set_result_text(welcome_text, "info")
+        # Get reference to main screen's layout
+        main_screen = self.screen_manager.get_screen('main')
+        main_screen.layout.set_result_text(welcome_text, "info")
     
     def on_stop(self):
         """Clean up when app is closing"""
