@@ -90,7 +90,7 @@ class DetailScreen(Screen):
         
         # Back button
         self.back_button = SimpleButton(
-            text="← Back",
+            text="Back",
             size_hint=(None, None),
             size=(100, 40),
             pos_hint={'x': 0}
