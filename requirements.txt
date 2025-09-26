@@ -4,3 +4,5 @@ numpy
 setuptools
 matplotlib
 Pillow
+kivy-garden
+kivy_garden.matplotlib

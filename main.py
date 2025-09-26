@@ -8,7 +8,7 @@ import pkg_resources
 
 # Auto-install required packages
 def install_missing_packages():
-    required = {'kivy', 'yfinance', 'numpy', 'setuptools', 'matplotlib'}
+    required = {'kivy', 'yfinance', 'numpy', 'setuptools', 'matplotlib', 'kivy-garden', 'kivy_garden.matplotlib', 'Pillow'}
     try:
         import pkg_resources
     except ImportError:

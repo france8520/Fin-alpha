@@ -18,8 +18,9 @@ from kivy.uix.image import Image as KivyImage
 from kivy.graphics.texture import Texture
 import io
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('module://kivy_garden.matplotlib.backend_kivy')
 import matplotlib.pyplot as plt
+from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 import yfinance as yf
 
 class SimpleCard(BoxLayout):
@@ -108,7 +109,7 @@ class DetailScreen(Screen):
         chart_card = SimpleCard(
             orientation='vertical',
             size_hint=(1, None),
-            height=240,
+            height=260,
             padding=[15, 12, 15, 12]
         )
         chart_title = Label(
@@ -120,12 +121,14 @@ class DetailScreen(Screen):
             valign="middle",
             text_size=(None, None)
         )
-        self.chart = HistoryChartImage(
+        self.chart = HistoryChartGarden(
             size_hint=(1, 1),
             line_color=(0.2, 0.8, 1.0, 1)
         )
         chart_card.add_widget(chart_title)
         chart_card.add_widget(self.chart)
+        # Ensure the chart expands inside the card
+        self.chart.size_hint = (1, 1)
 
         # Detailed results
         self.detail_scroll = ScrollView(
@@ -156,10 +159,15 @@ class DetailScreen(Screen):
         """Set detailed text and load chart for a ticker"""
         self.detail_label.text = detailed_text
         try:
+            # Surface loading state visibly
+            if hasattr(self.chart, 'status'):
+                self.chart.status.text = f"Loading {ticker}..."
             self.chart.load_data(ticker)
-        except Exception:
+        except Exception as e:
             # Fail silently for chart; keep details visible
-            pass
+            if hasattr(self.chart, 'status'):
+                self.chart.status.text = "Chart failed to load"
+            print(f"Chart load error (prep): {e}")
 
 class MainScreen(Screen):
     """Main screen with basic risk analysis"""
@@ -379,60 +387,96 @@ class StockAnalyzerLayout(BoxLayout):
         detail_screen.show_ticker_details(ticker, self.detailed_results)
         screen_manager.current = 'detail'
 
-class HistoryChartImage(BoxLayout):
-    """Matplotlib-rendered chart shown as an Image for robustness"""
+class HistoryChartGarden(BoxLayout):
+    """Matplotlib chart embedded directly via Kivy Garden backend."""
 
     def __init__(self, period: str = "1y", line_color=(0.2, 0.8, 1.0, 1), **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         self.period = period
         self.line_color = line_color
-        self.img = KivyImage(allow_stretch=True, keep_ratio=True)
-        self.add_widget(self.img)
-        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', size_hint=(1, None), height=20)
+        self.canvas_widget = None
+        # container ensures the chart gets the available space
+        self.chart_container = BoxLayout(orientation='vertical', size_hint=(1, 1))
+        self.add_widget(self.chart_container)
+        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', size_hint=(1, None), height=18)
         self.add_widget(self.status)
 
     def load_data(self, ticker: str):
-        data = yf.download(ticker, period=self.period, interval='1d', progress=False, auto_adjust=True)
+        self.status.text = "Loading..."
+        try:
+            data = yf.download(ticker, period=self.period, interval='1d', progress=False, auto_adjust=True)
+        except Exception as e:
+            print(f"yfinance primary fetch error: {e}")
+            data = None
         if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
             try:
                 data = yf.Ticker(ticker).history(period=self.period, interval='1d', auto_adjust=True)
-            except Exception:
+            except Exception as e:
+                print(f"yfinance fallback fetch error: {e}")
                 data = None
-        if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
-            self.status.text = "No historical data"
-            self.img.texture = None
-            return
-        closes = data['Close'].dropna()
-        self.status.text = ""
+        try:
+            if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
+                raise ValueError("No historical data returned")
+            closes = data['Close'].dropna()
+            if closes.empty:
+                raise ValueError("Close series empty after dropna()")
+            self.status.text = ""
 
-        # Render with matplotlib to PNG in memory
-        fig, ax = plt.subplots(figsize=(6, 2), dpi=160)
-        ax.plot(closes.index, closes.values, color=(self.line_color[0], self.line_color[1], self.line_color[2]))
-        ax.set_facecolor((0, 0, 0, 0))
-        fig.patch.set_alpha(0)
-        ax.grid(True, alpha=0.2)
-        ax.tick_params(colors='white', labelsize=7)
-        for spine in ax.spines.values():
-            spine.set_color('#88a')
-            spine.set_alpha(0.2)
-        ax.margins(x=0)
-        plt.tight_layout(pad=0.3)
+            import numpy as np
+            values = np.asarray(closes, dtype=float).reshape(-1)
+            x = np.arange(len(values))
 
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=160, transparent=True)
-        plt.close(fig)
-        buf.seek(0)
+            fig, ax = plt.subplots(figsize=(6.4, 2.2), dpi=170)
+            background_rgba = (0.05, 0.10, 0.25, 0.15)
+            fig.patch.set_facecolor(background_rgba)
+            ax.set_facecolor(background_rgba)
+            ax.grid(True, which='major', axis='y', alpha=0.15, linestyle='-')
+            ax.grid(False, axis='x')
 
-        # Load into Kivy texture
-        import PIL.Image as PILImage
-        pil = PILImage.open(buf).convert('RGBA')
-        width, height = pil.size
-        pixel_data = pil.tobytes()
-        texture = Texture.create(size=(width, height), colorfmt='rgba')
-        texture.blit_buffer(pixel_data, colorfmt='rgba', bufferfmt='ubyte')
-        texture.flip_vertical()
-        self.img.texture = texture
+            base_rgb = (self.line_color[0], self.line_color[1], self.line_color[2])
+            for lw, alpha in [(8, 0.06), (6, 0.08), (4, 0.12)]:
+                ax.plot(x, values, color=base_rgb, linewidth=lw, alpha=alpha)
+            ax.plot(x, values, color=base_rgb, linewidth=2.2)
+            ax.fill_between(x, values, values.min(), color=base_rgb, alpha=0.12)
+            ax.scatter([x[-1]], [values[-1]], color=base_rgb, s=12, zorder=5)
+            ax.text(x[-1], values[-1], f"  {values[-1]:.2f}  ", va='center', ha='left', fontsize=8,
+                    color='white',
+                    bbox=dict(boxstyle='round,pad=0.25', facecolor=(0.1, 0.2, 0.5, 0.9), edgecolor='none'))
+            ax.set_xlim(x.min(), x.max())
+            ax.set_ylim(values.min() * 0.98, values.max() * 1.02)
+            ax.tick_params(axis='both', which='both', length=0, labelsize=7, colors='white')
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            plt.tight_layout(pad=0.2)
+
+            # Attach to Kivy via Garden canvas
+            if self.canvas_widget and self.canvas_widget in self.chart_container.children:
+                self.chart_container.remove_widget(self.canvas_widget)
+            self.canvas_widget = FigureCanvasKivyAgg(fig)
+            self.canvas_widget.size_hint = (1, 1)
+            self.chart_container.add_widget(self.canvas_widget)
+        except Exception as e:
+            print(f"Chart render error: {e}")
+            # Render a small synthetic preview so we see something
+            import numpy as np
+            x = np.linspace(0, 10, 300)
+            y = np.sin(x) + 0.2*np.cos(3*x)
+            fig, ax = plt.subplots(figsize=(6.4, 2.2), dpi=170)
+            background_rgba = (0.05, 0.10, 0.25, 0.15)
+            fig.patch.set_facecolor(background_rgba)
+            ax.set_facecolor(background_rgba)
+            ax.plot(x, y, color=(self.line_color[0], self.line_color[1], self.line_color[2]), linewidth=2.2)
+            ax.grid(True, which='major', axis='y', alpha=0.15)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            plt.tight_layout(pad=0.2)
+            if self.canvas_widget and self.canvas_widget in self.chart_container.children:
+                self.chart_container.remove_widget(self.canvas_widget)
+            self.canvas_widget = FigureCanvasKivyAgg(fig)
+            self.canvas_widget.size_hint = (1, 1)
+            self.chart_container.add_widget(self.canvas_widget)
+            self.status.text = "Rendered demo chart (data unavailable)"
 
 def create_main_ui():
     """Create the main screen manager with all screens"""
