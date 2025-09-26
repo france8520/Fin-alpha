@@ -9,10 +9,18 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.image import Image
-from kivy.graphics import Color, RoundedRectangle
+from kivy.graphics import Color, RoundedRectangle, Line
 from kivy.core.window import Window
 from kivy.properties import ObjectProperty
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
+from kivy.uix.widget import Widget
+from kivy.uix.image import Image as KivyImage
+from kivy.graphics.texture import Texture
+import io
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import yfinance as yf
 
 class SimpleCard(BoxLayout):
     """Simple card with background"""
@@ -96,6 +104,29 @@ class DetailScreen(Screen):
             pos_hint={'x': 0}
         )
         
+        # Chart card
+        chart_card = SimpleCard(
+            orientation='vertical',
+            size_hint=(1, None),
+            height=240,
+            padding=[15, 12, 15, 12]
+        )
+        chart_title = Label(
+            text="1Y Price History",
+            size_hint=(1, None),
+            height=24,
+            color=(1, 1, 1, 0.9),
+            halign="left",
+            valign="middle",
+            text_size=(None, None)
+        )
+        self.chart = HistoryChartImage(
+            size_hint=(1, 1),
+            line_color=(0.2, 0.8, 1.0, 1)
+        )
+        chart_card.add_widget(chart_title)
+        chart_card.add_widget(self.chart)
+
         # Detailed results
         self.detail_scroll = ScrollView(
             size_hint=(1, 1),
@@ -108,14 +139,27 @@ class DetailScreen(Screen):
             halign="left",
             valign="top",
             markup=True,
-            padding=(10, 10)
+            padding=(10, 10),
+            text_size=(None, None)
         )
         self.detail_label.bind(texture_size=lambda *x: setattr(self.detail_label, 'height', self.detail_label.texture_size[1]))
+        # Make label wrap to ScrollView width
+        self.detail_label.bind(width=lambda instance, w: setattr(instance, 'text_size', (w - 20, None)))
         
         self.detail_scroll.add_widget(self.detail_label)
         self.layout.add_widget(self.back_button)
+        self.layout.add_widget(chart_card)
         self.layout.add_widget(self.detail_scroll)
         self.add_widget(self.layout)
+
+    def show_ticker_details(self, ticker: str, detailed_text: str):
+        """Set detailed text and load chart for a ticker"""
+        self.detail_label.text = detailed_text
+        try:
+            self.chart.load_data(ticker)
+        except Exception:
+            # Fail silently for chart; keep details visible
+            pass
 
 class MainScreen(Screen):
     """Main screen with basic risk analysis"""
@@ -151,8 +195,6 @@ class StockAnalyzerLayout(BoxLayout):
         
         self.logo_image = Image(
             source='Fin.png',
-            allow_stretch=True,
-            keep_ratio=True,
             size_hint=(None, None),
             size=(100, 100),
             pos_hint={'center_x': 0.5, 'center_y': 0.5}
@@ -331,10 +373,66 @@ class StockAnalyzerLayout(BoxLayout):
         app = App.get_running_app()
         screen_manager = app.screen_manager
         
-        # Set detailed text and switch screens
+        # Set detailed text, load chart, and switch screens
         detail_screen = screen_manager.get_screen('detail')
-        detail_screen.detail_label.text = self.detailed_results
+        ticker = self.get_ticker_input()
+        detail_screen.show_ticker_details(ticker, self.detailed_results)
         screen_manager.current = 'detail'
+
+class HistoryChartImage(BoxLayout):
+    """Matplotlib-rendered chart shown as an Image for robustness"""
+
+    def __init__(self, period: str = "1y", line_color=(0.2, 0.8, 1.0, 1), **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.period = period
+        self.line_color = line_color
+        self.img = KivyImage(allow_stretch=True, keep_ratio=True)
+        self.add_widget(self.img)
+        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', size_hint=(1, None), height=20)
+        self.add_widget(self.status)
+
+    def load_data(self, ticker: str):
+        data = yf.download(ticker, period=self.period, interval='1d', progress=False, auto_adjust=True)
+        if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
+            try:
+                data = yf.Ticker(ticker).history(period=self.period, interval='1d', auto_adjust=True)
+            except Exception:
+                data = None
+        if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
+            self.status.text = "No historical data"
+            self.img.texture = None
+            return
+        closes = data['Close'].dropna()
+        self.status.text = ""
+
+        # Render with matplotlib to PNG in memory
+        fig, ax = plt.subplots(figsize=(6, 2), dpi=160)
+        ax.plot(closes.index, closes.values, color=(self.line_color[0], self.line_color[1], self.line_color[2]))
+        ax.set_facecolor((0, 0, 0, 0))
+        fig.patch.set_alpha(0)
+        ax.grid(True, alpha=0.2)
+        ax.tick_params(colors='white', labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color('#88a')
+            spine.set_alpha(0.2)
+        ax.margins(x=0)
+        plt.tight_layout(pad=0.3)
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=160, transparent=True)
+        plt.close(fig)
+        buf.seek(0)
+
+        # Load into Kivy texture
+        import PIL.Image as PILImage
+        pil = PILImage.open(buf).convert('RGBA')
+        width, height = pil.size
+        pixel_data = pil.tobytes()
+        texture = Texture.create(size=(width, height), colorfmt='rgba')
+        texture.blit_buffer(pixel_data, colorfmt='rgba', bufferfmt='ubyte')
+        texture.flip_vertical()
+        self.img.texture = texture
 
 def create_main_ui():
     """Create the main screen manager with all screens"""

@@ -2,3 +2,5 @@ kivy
 yfinance
 numpy
 setuptools
+matplotlib
+Pillow
