@@ -95,9 +95,11 @@ class DetailScreen(Screen):
     """Detailed information screen"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=[20, 20])
         
-        # Back button
+        # Main layout with padding
+        self.layout = BoxLayout(orientation='vertical', padding=[10, 5])
+        
+        # Back button at top
         self.back_button = SimpleButton(
             text="Back",
             size_hint=(None, None),
@@ -105,69 +107,80 @@ class DetailScreen(Screen):
             pos_hint={'x': 0}
         )
         
-        # Chart card - Increased height
-        chart_card = SimpleCard(
+        # Scrollable content
+        scroll_content = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=10,
+            bar_color=(0.7, 0.7, 0.7, 0.9),
+            bar_inactive_color=(0.7, 0.7, 0.7, 0.2),
+            scroll_type=['bars', 'content']
+        )
+        
+        # Content layout inside scroll view
+        content_layout = BoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            spacing=10,
+            padding=[5, 5]
+        )
+        content_layout.bind(minimum_height=content_layout.setter('height'))
+        
+        # Chart card with fixed height
+        self.chart_card = SimpleCard(
             orientation='vertical',
             size_hint=(1, None),
-            height=400,  # Increased from 260
-            padding=[15, 12, 15, 12]
+            height=400,  # Fixed height for chart
+            padding=[10, 10]
         )
-        chart_title = Label(
-            text="1Y Price History",
+        
+        # Risk metrics card with auto height
+        self.metrics_card = SimpleCard(
+            orientation='vertical',
             size_hint=(1, None),
-            height=24,
-            color=(1, 1, 1, 0.9),
-            halign="left",
-            valign="middle",
-            text_size=(None, None)
+            height=200,  # Initial height for metrics
+            padding=[15, 15]
         )
-        self.chart = HistoryChartGarden(
-            size_hint=(1, 1),
-            line_color=(0.2, 0.8, 1.0, 1)
-        )
-        chart_card.add_widget(chart_title)
-        chart_card.add_widget(self.chart)
-        # Ensure the chart expands inside the card
-        self.chart.size_hint = (1, 1)
-
-        # Detailed results
-        self.detail_scroll = ScrollView(
-            size_hint=(1, 1),
-            bar_width=12,
-            do_scroll_x=False
-        )
+        
+        # Risk metrics label
         self.detail_label = Label(
             text="",
-            size_hint_y=None,
-            halign="left",
-            valign="top",
+            size_hint=(1, 1),
+            halign='center',
+            valign='middle',
             markup=True,
-            padding=(10, 10),
-            text_size=(None, None)
+            font_size='16sp'
         )
-        self.detail_label.bind(texture_size=lambda *x: setattr(self.detail_label, 'height', self.detail_label.texture_size[1]))
-        # Make label wrap to ScrollView width
-        self.detail_label.bind(width=lambda instance, w: setattr(instance, 'text_size', (w - 20, None)))
+        self.detail_label.bind(size=self._update_label_text_size)
         
-        self.detail_scroll.add_widget(self.detail_label)
+        # Add widgets to cards
+        self.chart = HistoryChartGarden(size_hint=(1, 1))
+        self.chart_card.add_widget(self.chart)
+        self.metrics_card.add_widget(self.detail_label)
+        
+        # Add cards to content layout
+        content_layout.add_widget(self.chart_card)
+        content_layout.add_widget(self.metrics_card)
+        
+        # Add everything to scroll view and main layout
+        scroll_content.add_widget(content_layout)
         self.layout.add_widget(self.back_button)
-        self.layout.add_widget(chart_card)
-        self.layout.add_widget(self.detail_scroll)
+        self.layout.add_widget(scroll_content)
+        
         self.add_widget(self.layout)
 
+    def _update_label_text_size(self, instance, value):
+        instance.text_size = (value[0], None)
+        
     def show_ticker_details(self, ticker: str, detailed_text: str):
-        """Set detailed text and load chart for a ticker"""
-        self.detail_label.text = detailed_text
         try:
-            # Surface loading state visibly
-            if hasattr(self.chart, 'status'):
-                self.chart.status.text = f"Loading {ticker}..."
             self.chart.load_data(ticker)
+            self.detail_label.text = detailed_text
         except Exception as e:
-            # Fail silently for chart; keep details visible
-            if hasattr(self.chart, 'status'):
-                self.chart.status.text = "Chart failed to load"
-            print(f"Chart load error (prep): {e}")
+            print(f"Error showing details: {e}")
+            self.detail_label.text = f"Error loading data: {str(e)}"
+
 
 class MainScreen(Screen):
     """Main screen with basic risk analysis"""
@@ -396,125 +409,105 @@ class HistoryChartGarden(BoxLayout):
         self.period = period
         self.line_color = line_color
         self.canvas_widget = None
-        # Increase the size of chart container
         self.chart_container = BoxLayout(orientation='vertical', size_hint=(1, 1))
         self.add_widget(self.chart_container)
-        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', 
-                          size_hint=(1, None), height=20)
-        self.add_widget(self.status)
 
     def load_data(self, ticker: str):
-        self.status.text = "Loading..."
         try:
             import yfinance as yf
-            import numpy as np
             import matplotlib.pyplot as plt
-            from matplotlib.ticker import FuncFormatter, MultipleLocator
-
-            # Fetch data
-            data = yf.download(ticker, period=self.period, interval='1d', progress=False)
-            if data.empty:
-                raise ValueError("No data available")
-
-            closes = data['Close'].dropna()
-            values = np.asarray(closes, dtype=float).reshape(-1)
-            x = np.arange(len(values))
-
-            # Create larger figure
-            plt.style.use('dark_background')
-            fig, ax = plt.subplots(figsize=(12, 6), dpi=100)
+            import numpy as np
+            from matplotlib.ticker import FuncFormatter
+            from datetime import datetime
             
-            # Set background colors
-            fig.patch.set_facecolor((0.05, 0.10, 0.25, 0.95))
-            ax.set_facecolor((0.05, 0.10, 0.25, 0.95))
+            # Create figure with dark theme
+            plt.style.use('dark_background')
+            fig = plt.figure(figsize=(10, 6), dpi=100, constrained_layout=True)
+            ax = fig.add_subplot(111)
+            
+            # Set colors
+            fig.patch.set_facecolor((0.05, 0.1, 0.2, 1))
+            ax.set_facecolor((0.05, 0.1, 0.2, 1))
 
-            # Add prominent grid
-            ax.grid(True, which='both', axis='both', alpha=0.2, color='white')
-            ax.set_axisbelow(True)
-
-            # Plot main line with enhanced visibility
-            line = ax.plot(x, values, color=self.line_color[:3], 
-                         linewidth=2.5, zorder=5)[0]
-
-            # Add gradient fill
-            ax.fill_between(x, values, values.min(), 
-                          color=self.line_color[:3], 
-                          alpha=0.2)
-
-            # Format prices with dollar signs and commas
-            def price_formatter(x, p):
-                return f'${x:,.2f}'
-            ax.yaxis.set_major_formatter(FuncFormatter(price_formatter))
-
-            # Add more y-axis ticks
-            y_range = values.max() - values.min()
-            ax.yaxis.set_major_locator(MultipleLocator(y_range/8))
-
-            # Enhance tick labels
-            ax.tick_params(axis='both', colors='white', labelsize=10)
-
-            # Add price labels at key points
-            start_price = values[0]
-            end_price = values[-1]
-            max_price = values.max()
-            min_price = values.min()
-
-            # Current price point and label
-            ax.scatter([x[-1]], [end_price], color='white', s=100, zorder=6)
-            ax.annotate(f'${end_price:,.2f}',
-                       xy=(x[-1], end_price),
-                       xytext=(10, 10),
+            # Get stock data and ensure it's properly formatted
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=self.period)
+            
+            if hist.empty:
+                raise ValueError("No data available for this ticker")
+                
+            # Extract close prices and ensure 1D array
+            prices = hist['Close'].values.flatten()
+            dates = np.arange(len(prices))  # Use simple indices for x-axis
+            
+            # Create the line plot
+            ax.plot(dates, prices, color=self.line_color[:3], linewidth=2, label='Price')
+            
+            # Add fill
+            ax.fill_between(dates, prices, np.min(prices), alpha=0.1, color=self.line_color[:3])
+            
+            # Format y-axis with dollar signs
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: f'${x:,.2f}'))
+            
+            # Add grid
+            ax.grid(True, alpha=0.2, linestyle='--', color='white')
+            
+            # Add price markers
+            current_price = prices[-1]
+            high_price = np.max(prices)
+            low_price = np.min(prices)
+            
+            # Annotate current price
+            ax.annotate(f'${current_price:,.2f}',
+                       xy=(dates[-1], current_price),
+                       xytext=(10, 0),
                        textcoords='offset points',
                        color='white',
-                       fontsize=12,
-                       fontweight='bold',
+                       fontsize=10,
                        bbox=dict(
-                           boxstyle='round,pad=0.5',
-                           fc=(0.1, 0.2, 0.5, 0.9),
-                           ec='none'
+                           facecolor=(0.1, 0.2, 0.5, 0.8),
+                           edgecolor='none',
+                           pad=3
                        ))
-
-            # Add min/max labels
-            ax.annotate(f'High: ${max_price:,.2f}',
-                       xy=(x[np.argmax(values)], max_price),
+            
+            # Add high/low annotations
+            high_idx = np.argmax(prices)
+            low_idx = np.argmin(prices)
+            
+            ax.annotate(f'High: ${high_price:,.2f}',
+                       xy=(dates[high_idx], high_price),
                        xytext=(0, 15),
                        textcoords='offset points',
+                       ha='center',
                        color='lightgreen',
-                       fontsize=10,
-                       ha='center')
-
-            ax.annotate(f'Low: ${min_price:,.2f}',
-                       xy=(x[np.argmin(values)], min_price),
+                       fontsize=9)
+                       
+            ax.annotate(f'Low: ${low_price:,.2f}',
+                       xy=(dates[low_idx], low_price),
                        xytext=(0, -15),
                        textcoords='offset points',
+                       ha='center',
                        color='pink',
-                       fontsize=10,
-                       ha='center')
-
+                       fontsize=9)
+            
+            # Clean up the plot
+            ax.set_title(f'{ticker} - 1 Year Price History', color='white', pad=10)
+            
             # Remove spines
             for spine in ax.spines.values():
                 spine.set_visible(False)
-
-            # Add title
-            ax.set_title(f'{ticker} - 1 Year Price History',
-                        color='white',
-                        fontsize=14,
-                        pad=20)
-
-            plt.tight_layout(pad=2.0)
-
-            # Update canvas
-            if self.canvas_widget and self.canvas_widget in self.chart_container.children:
+                
+            # Update the canvas
+            if self.canvas_widget:
                 self.chart_container.remove_widget(self.canvas_widget)
             
             from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
             self.canvas_widget = FigureCanvasKivyAgg(fig)
             self.chart_container.add_widget(self.canvas_widget)
-            self.status.text = ""
 
         except Exception as e:
-            print(f"Chart error: {e}")
-            self.status.text = "Unable to load chart data"
+            print(f"Error creating chart: {e}")
+            raise e
 
 def create_main_ui():
     """Create the main screen manager with all screens"""
