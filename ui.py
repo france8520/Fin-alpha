@@ -105,11 +105,11 @@ class DetailScreen(Screen):
             pos_hint={'x': 0}
         )
         
-        # Chart card
+        # Chart card - Increased height
         chart_card = SimpleCard(
             orientation='vertical',
             size_hint=(1, None),
-            height=260,
+            height=400,  # Increased from 260
             padding=[15, 12, 15, 12]
         )
         chart_title = Label(
@@ -388,7 +388,7 @@ class StockAnalyzerLayout(BoxLayout):
         screen_manager.current = 'detail'
 
 class HistoryChartGarden(BoxLayout):
-    """Matplotlib chart embedded directly via Kivy Garden backend."""
+    """Matplotlib chart with improved visuals and performance"""
 
     def __init__(self, period: str = "1y", line_color=(0.2, 0.8, 1.0, 1), **kwargs):
         super().__init__(**kwargs)
@@ -396,87 +396,125 @@ class HistoryChartGarden(BoxLayout):
         self.period = period
         self.line_color = line_color
         self.canvas_widget = None
-        # container ensures the chart gets the available space
+        # Increase the size of chart container
         self.chart_container = BoxLayout(orientation='vertical', size_hint=(1, 1))
         self.add_widget(self.chart_container)
-        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', size_hint=(1, None), height=18)
+        self.status = Label(text="", color=(1, 1, 1, 0.7), font_size='12sp', 
+                          size_hint=(1, None), height=20)
         self.add_widget(self.status)
 
     def load_data(self, ticker: str):
         self.status.text = "Loading..."
         try:
-            data = yf.download(ticker, period=self.period, interval='1d', progress=False, auto_adjust=True)
-        except Exception as e:
-            print(f"yfinance primary fetch error: {e}")
-            data = None
-        if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
-            try:
-                data = yf.Ticker(ticker).history(period=self.period, interval='1d', auto_adjust=True)
-            except Exception as e:
-                print(f"yfinance fallback fetch error: {e}")
-                data = None
-        try:
-            if data is None or data.empty or 'Close' not in getattr(data, 'columns', []):
-                raise ValueError("No historical data returned")
-            closes = data['Close'].dropna()
-            if closes.empty:
-                raise ValueError("Close series empty after dropna()")
-            self.status.text = ""
-
+            import yfinance as yf
             import numpy as np
+            import matplotlib.pyplot as plt
+            from matplotlib.ticker import FuncFormatter, MultipleLocator
+
+            # Fetch data
+            data = yf.download(ticker, period=self.period, interval='1d', progress=False)
+            if data.empty:
+                raise ValueError("No data available")
+
+            closes = data['Close'].dropna()
             values = np.asarray(closes, dtype=float).reshape(-1)
             x = np.arange(len(values))
 
-            fig, ax = plt.subplots(figsize=(6.4, 2.2), dpi=170)
-            background_rgba = (0.05, 0.10, 0.25, 0.15)
-            fig.patch.set_facecolor(background_rgba)
-            ax.set_facecolor(background_rgba)
-            ax.grid(True, which='major', axis='y', alpha=0.15, linestyle='-')
-            ax.grid(False, axis='x')
+            # Create larger figure
+            plt.style.use('dark_background')
+            fig, ax = plt.subplots(figsize=(12, 6), dpi=100)
+            
+            # Set background colors
+            fig.patch.set_facecolor((0.05, 0.10, 0.25, 0.95))
+            ax.set_facecolor((0.05, 0.10, 0.25, 0.95))
 
-            base_rgb = (self.line_color[0], self.line_color[1], self.line_color[2])
-            for lw, alpha in [(8, 0.06), (6, 0.08), (4, 0.12)]:
-                ax.plot(x, values, color=base_rgb, linewidth=lw, alpha=alpha)
-            ax.plot(x, values, color=base_rgb, linewidth=2.2)
-            ax.fill_between(x, values, values.min(), color=base_rgb, alpha=0.12)
-            ax.scatter([x[-1]], [values[-1]], color=base_rgb, s=12, zorder=5)
-            ax.text(x[-1], values[-1], f"  {values[-1]:.2f}  ", va='center', ha='left', fontsize=8,
-                    color='white',
-                    bbox=dict(boxstyle='round,pad=0.25', facecolor=(0.1, 0.2, 0.5, 0.9), edgecolor='none'))
-            ax.set_xlim(x.min(), x.max())
-            ax.set_ylim(values.min() * 0.98, values.max() * 1.02)
-            ax.tick_params(axis='both', which='both', length=0, labelsize=7, colors='white')
+            # Add prominent grid
+            ax.grid(True, which='both', axis='both', alpha=0.2, color='white')
+            ax.set_axisbelow(True)
+
+            # Plot main line with enhanced visibility
+            line = ax.plot(x, values, color=self.line_color[:3], 
+                         linewidth=2.5, zorder=5)[0]
+
+            # Add gradient fill
+            ax.fill_between(x, values, values.min(), 
+                          color=self.line_color[:3], 
+                          alpha=0.2)
+
+            # Format prices with dollar signs and commas
+            def price_formatter(x, p):
+                return f'${x:,.2f}'
+            ax.yaxis.set_major_formatter(FuncFormatter(price_formatter))
+
+            # Add more y-axis ticks
+            y_range = values.max() - values.min()
+            ax.yaxis.set_major_locator(MultipleLocator(y_range/8))
+
+            # Enhance tick labels
+            ax.tick_params(axis='both', colors='white', labelsize=10)
+
+            # Add price labels at key points
+            start_price = values[0]
+            end_price = values[-1]
+            max_price = values.max()
+            min_price = values.min()
+
+            # Current price point and label
+            ax.scatter([x[-1]], [end_price], color='white', s=100, zorder=6)
+            ax.annotate(f'${end_price:,.2f}',
+                       xy=(x[-1], end_price),
+                       xytext=(10, 10),
+                       textcoords='offset points',
+                       color='white',
+                       fontsize=12,
+                       fontweight='bold',
+                       bbox=dict(
+                           boxstyle='round,pad=0.5',
+                           fc=(0.1, 0.2, 0.5, 0.9),
+                           ec='none'
+                       ))
+
+            # Add min/max labels
+            ax.annotate(f'High: ${max_price:,.2f}',
+                       xy=(x[np.argmax(values)], max_price),
+                       xytext=(0, 15),
+                       textcoords='offset points',
+                       color='lightgreen',
+                       fontsize=10,
+                       ha='center')
+
+            ax.annotate(f'Low: ${min_price:,.2f}',
+                       xy=(x[np.argmin(values)], min_price),
+                       xytext=(0, -15),
+                       textcoords='offset points',
+                       color='pink',
+                       fontsize=10,
+                       ha='center')
+
+            # Remove spines
             for spine in ax.spines.values():
                 spine.set_visible(False)
-            plt.tight_layout(pad=0.2)
 
-            # Attach to Kivy via Garden canvas
+            # Add title
+            ax.set_title(f'{ticker} - 1 Year Price History',
+                        color='white',
+                        fontsize=14,
+                        pad=20)
+
+            plt.tight_layout(pad=2.0)
+
+            # Update canvas
             if self.canvas_widget and self.canvas_widget in self.chart_container.children:
                 self.chart_container.remove_widget(self.canvas_widget)
+            
+            from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
             self.canvas_widget = FigureCanvasKivyAgg(fig)
-            self.canvas_widget.size_hint = (1, 1)
             self.chart_container.add_widget(self.canvas_widget)
+            self.status.text = ""
+
         except Exception as e:
-            print(f"Chart render error: {e}")
-            # Render a small synthetic preview so we see something
-            import numpy as np
-            x = np.linspace(0, 10, 300)
-            y = np.sin(x) + 0.2*np.cos(3*x)
-            fig, ax = plt.subplots(figsize=(6.4, 2.2), dpi=170)
-            background_rgba = (0.05, 0.10, 0.25, 0.15)
-            fig.patch.set_facecolor(background_rgba)
-            ax.set_facecolor(background_rgba)
-            ax.plot(x, y, color=(self.line_color[0], self.line_color[1], self.line_color[2]), linewidth=2.2)
-            ax.grid(True, which='major', axis='y', alpha=0.15)
-            for spine in ax.spines.values():
-                spine.set_visible(False)
-            plt.tight_layout(pad=0.2)
-            if self.canvas_widget and self.canvas_widget in self.chart_container.children:
-                self.chart_container.remove_widget(self.canvas_widget)
-            self.canvas_widget = FigureCanvasKivyAgg(fig)
-            self.canvas_widget.size_hint = (1, 1)
-            self.chart_container.add_widget(self.canvas_widget)
-            self.status.text = "Rendered demo chart (data unavailable)"
+            print(f"Chart error: {e}")
+            self.status.text = "Unable to load chart data"
 
 def create_main_ui():
     """Create the main screen manager with all screens"""
