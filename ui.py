@@ -284,6 +284,23 @@ class StockAnalyzerLayout(BoxLayout):
             scroll_y=1  # Start at top
         )
 
+        # Container for logo and result
+        self.results_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, None),
+            spacing=10,
+            padding=[10, 10]
+        )
+        self.results_container.bind(minimum_height=self.results_container.setter('height'))
+
+        # Company logo placeholder (will be replaced by label)
+        self.company_logo = Image(
+            size_hint=(None, None),
+            size=(80, 80),
+            pos_hint={'center_x': 0.5},
+            opacity=0  # Start hidden
+        )
+
         # Basic result display
         self.result_label = Label(
             text="",
@@ -296,7 +313,9 @@ class StockAnalyzerLayout(BoxLayout):
         )
         self.result_label.bind(texture_size=lambda *x: setattr(self.result_label, 'height', self.result_label.texture_size[1] + 20))  # + padding
 
-        self.results_scroll.add_widget(self.result_label)
+        self.results_container.add_widget(self.company_logo)
+        self.results_container.add_widget(self.result_label)
+        self.results_scroll.add_widget(self.results_container)
 
         # More Info button
         self.more_info_button = SimpleButton(
@@ -357,15 +376,19 @@ class StockAnalyzerLayout(BoxLayout):
         if "Risk Level: HIGH" in text:
             simple_text = "Risk Level: HIGH"
             self.result_label.color = (1, 0.1, 0.1, 1)
+            self.load_company_logo()
         elif "Risk Level: MEDIUM" in text:
             simple_text = "Risk Level: MEDIUM"
             self.result_label.color = (1, 0.8, 0.2, 1)
+            self.load_company_logo()
         elif "Risk Level: LOW" in text:
             simple_text = "Risk Level: LOW"
             self.result_label.color = (0.1, 1, 0.1, 1)
+            self.load_company_logo()
         else:
             simple_text = text
             self.result_label.color = (1, 1, 1, 1)
+            self.hide_company_logo()
         
         self.result_label.text = simple_text
 
@@ -385,8 +408,101 @@ class StockAnalyzerLayout(BoxLayout):
     def get_ticker_input(self) -> str:
         return self.ticker_input.text.strip().upper()
     
-    def bind_analyze_button(self, callback):
-        self.analyze_button.bind(on_press=callback)
+    def load_company_logo(self):
+        """Load company logo image from Yahoo Finance"""
+        ticker = self.get_ticker_input()
+        if not ticker:
+            return
+        
+        try:
+            from kivy.clock import Clock
+            import requests
+            from io import BytesIO
+            from kivy.core.image import Image as CoreImage
+            
+            def download_and_display_logo(dt):
+                try:
+                    # Get company info from yfinance
+                    stock = yf.Ticker(ticker)
+                    info = stock.info
+                    company_name = info.get('shortName', info.get('longName', ticker))
+                    
+                    # Try to get logo from Yahoo Finance logo service
+                    # Yahoo Finance uses this pattern for logos
+                    logo_url = f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png"
+                    
+                    try:
+                        response = requests.get(logo_url, timeout=5)
+                        if response.status_code == 200:
+                            # Load image from bytes
+                            data = BytesIO(response.content)
+                            core_image = CoreImage(data, ext='png')
+                            
+                            # Update the company logo image
+                            self.company_logo.texture = core_image.texture
+                            self.company_logo.opacity = 1
+                            
+                            # Add company name label below logo if not exists
+                            if not hasattr(self, 'company_name_label'):
+                                self.company_name_label = Label(
+                                    text="",
+                                    markup=True,
+                                    size_hint=(1, None),
+                                    height=40,
+                                    halign='center',
+                                    valign='middle',
+                                    color=(1, 1, 1, 0.9),
+                                    font_size='16sp'
+                                )
+                                self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
+                                # Add after logo
+                                logo_index = self.results_container.children.index(self.company_logo)
+                                self.results_container.add_widget(self.company_name_label, index=logo_index)
+                            
+                            self.company_name_label.text = f"[b]{company_name}[/b]\n{ticker}"
+                            self.company_name_label.opacity = 1
+                            return
+                    except Exception as e:
+                        print(f"Logo download failed: {e}")
+                    
+                    # Fallback: Show company name as text if logo fails
+                    self.company_logo.opacity = 0
+                    
+                    if not hasattr(self, 'company_name_label'):
+                        self.company_name_label = Label(
+                            text="",
+                            markup=True,
+                            size_hint=(1, None),
+                            height=60,
+                            halign='center',
+                            valign='middle',
+                            color=(1, 1, 1, 0.9),
+                            font_size='18sp'
+                        )
+                        self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
+                        logo_index = self.results_container.children.index(self.company_logo)
+                        self.results_container.add_widget(self.company_name_label, index=logo_index)
+                    
+                    # Show text-based logo
+                    logo_text = f"[b][size=24sp]{company_name}[/size][/b]\n[size=14sp]{ticker}[/size]"
+                    self.company_name_label.text = logo_text
+                    self.company_name_label.opacity = 1
+                    
+                except Exception as e:
+                    print(f"Could not load company info: {e}")
+                    self.hide_company_logo()
+            
+            Clock.schedule_once(download_and_display_logo, 0.1)
+            
+        except Exception as e:
+            print(f"Error loading company info: {e}")
+            self.hide_company_logo()
+    
+    def hide_company_logo(self):
+        """Hide the company logo and name"""
+        self.company_logo.opacity = 0
+        if hasattr(self, 'company_name_label'):
+            self.company_name_label.opacity = 0
 
     def show_details(self, instance):
         """Show detailed analysis screen"""
