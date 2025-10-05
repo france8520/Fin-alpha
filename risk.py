@@ -28,8 +28,8 @@ class StockRiskAnalyzer:
     
     def __init__(self):
         self.risk_thresholds = {
-            'high': 0.3,
-            'medium': 0.15
+            'high': 0.4,
+            'medium': 0.2
         }
     
     def analyze_stock(self, ticker: str, period: str = "1y") -> Optional[RiskMetrics]:
@@ -233,7 +233,8 @@ def get_top_low_risk_stocks(limit: int = 5) -> list[RiskMetrics]:
     popular_stocks = [
         'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'JNJ', 'PG', 'KO', 'PEP', 'WMT',
         'HD', 'VZ', 'INTC', 'PFE', 'MRK', 'UNH', 'JPM', 'V', 'MA', 'DIS',
-        'NFLX', 'TSLA', 'NVDA', 'AMD', 'CRM', 'ORCL', 'IBM', 'CSCO', 'ADBE', 'PYPL'
+        'NFLX', 'TSLA', 'NVDA', 'AMD', 'CRM', 'ORCL', 'IBM', 'CSCO', 'ADBE', 'PYPL', '^GSPTSE', '^GSPC', '^IXIC',
+        'HG=F', 'GC=F', 'SI=F'
     ]
 
     analyzer = StockRiskAnalyzer()

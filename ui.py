@@ -444,48 +444,76 @@ class StockAnalyzerLayout(BoxLayout):
                     stock = yf.Ticker(ticker)
                     info = stock.info
                     company_name = info.get('shortName', info.get('longName', ticker))
-                    
-                    # Try to get logo from Yahoo Finance logo service
-                    # Yahoo Finance uses this pattern for logos
-                    logo_url = f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png"
-                    
-                    try:
-                        response = requests.get(logo_url, timeout=5)
-                        if response.status_code == 200:
-                            # Load image from bytes
-                            data = BytesIO(response.content)
-                            core_image = CoreImage(data, ext='png')
-                            
-                            # Update the company logo image
-                            self.company_logo.texture = core_image.texture
-                            self.company_logo.opacity = 1
-                            
-                            # Add company name label below logo if not exists
-                            if not hasattr(self, 'company_name_label'):
-                                self.company_name_label = Label(
-                                    text="",
-                                    markup=True,
-                                    size_hint=(1, None),
-                                    height=40,
-                                    halign='center',
-                                    valign='middle',
-                                    color=(1, 1, 1, 0.9),
-                                    font_size='16sp'
-                                )
-                                self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
-                                # Add after logo
-                                logo_index = self.results_container.children.index(self.company_logo)
-                                self.results_container.add_widget(self.company_name_label, index=logo_index)
-                            
-                            self.company_name_label.text = f"[b]{company_name}[/b]\n{ticker}"
-                            self.company_name_label.opacity = 1
-                            return
-                    except Exception as e:
-                        print(f"Logo download failed: {e}")
-                    
+
+                    # Try multiple logo sources with additional fallback for crypto, ETFs, and indices
+                    logo_sources = []
+                    # Special handling for crypto tickers with suffix -USD or similar
+                    if ticker.upper().endswith("-USD"):
+                        base_ticker = ticker.upper().replace("-USD", "").lower()
+                        # Multiple crypto logo sources
+                        logo_sources.append(f"https://cryptologos.cc/logos/{base_ticker}-{base_ticker}-logo.png")
+                        logo_sources.append(f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{base_ticker}.png")
+                        logo_sources.append(f"https://cryptoicons.org/api/icon/{base_ticker}/200")
+                        logo_sources.append(f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{base_ticker}.svg")
+                    else:
+                        logo_sources = [
+                            f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png",
+                            f"https://img.logo.dev/{ticker.lower()}.com?token=pk_KJ6f8BqBRoW8cLxNfE8L8A",
+                            f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{ticker.lower()}.svg",
+                            f"https://s3-symbol-logo.tradingview.com/etf/{ticker.lower()}.svg",
+                            f"https://s3-symbol-logo.tradingview.com/index/{ticker.lower()}.svg"
+                        ]
+
+                    logo_loaded = False
+                    for logo_url in logo_sources:
+                        try:
+                            print(f"Trying logo URL: {logo_url}")
+                            response = requests.get(logo_url, timeout=3)
+                            print(f"Response status: {response.status_code}")
+                            if response.status_code == 200:
+                                data = BytesIO(response.content)
+                                # Handle SVG logos by skipping (Kivy does not support SVG natively)
+                                if logo_url.endswith('.svg'):
+                                    print("Skipping SVG logo")
+                                    continue
+                                core_image = CoreImage(data, ext='png')
+                                if core_image.texture:
+                                    self.company_logo.texture = core_image.texture
+                                    self.company_logo.opacity = 1
+                                    logo_loaded = True
+                                    print(f"Logo loaded successfully from: {logo_url}")
+
+                                    # Add company name label below logo if not exists
+                                    if not hasattr(self, 'company_name_label'):
+                                        self.company_name_label = Label(
+                                            text="",
+                                            markup=True,
+                                            size_hint=(1, None),
+                                            height=40,
+                                            halign='center',
+                                            valign='middle',
+                                            color=(1, 1, 1, 0.9),
+                                            font_size='16sp'
+                                        )
+                                        self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
+                                        # Add after logo
+                                        logo_index = self.results_container.children.index(self.company_logo)
+                                        self.results_container.add_widget(self.company_name_label, index=logo_index)
+
+                                    self.company_name_label.text = f"[b]{company_name}[/b]\n{ticker}"
+                                    self.company_name_label.opacity = 1
+                                    return
+                                else:
+                                    print("Failed to create texture from image data")
+                            else:
+                                print(f"Failed to load logo from {logo_url}, status: {response.status_code}")
+                        except Exception as e:
+                            print(f"Exception loading logo from {logo_url}: {e}")
+                            continue
+
                     # Fallback: Show company name as text if logo fails
                     self.company_logo.opacity = 0
-                    
+
                     if not hasattr(self, 'company_name_label'):
                         self.company_name_label = Label(
                             text="",
@@ -500,7 +528,7 @@ class StockAnalyzerLayout(BoxLayout):
                         self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
                         logo_index = self.results_container.children.index(self.company_logo)
                         self.results_container.add_widget(self.company_name_label, index=logo_index)
-                    
+
                     # Show text-based logo
                     logo_text = f"[b][size=24sp]{company_name}[/size][/b]\n[size=14sp]{ticker}[/size]"
                     self.company_name_label.text = logo_text
@@ -751,15 +779,54 @@ class TopStocksScreen(Screen):
                 # Update name label
                 name_label.text = f"[b]{company_name}[/b] ({ticker})"
 
-                # Try to load logo
-                logo_url = f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png"
-                response = requests.get(logo_url, timeout=5)
-                if response.status_code == 200:
-                    data = BytesIO(response.content)
-                    core_image = CoreImage(data, ext='png')
-                    image_widget.texture = core_image.texture
+                # Try multiple logo sources with additional fallback for crypto, ETFs, and indices
+                logo_sources = []
+                # Special handling for crypto tickers with suffix -USD or similar
+                if ticker.upper().endswith("-USD"):
+                    base_ticker = ticker.upper().replace("-USD", "").lower()
+                    # Multiple crypto logo sources
+                    logo_sources.append(f"https://cryptologos.cc/logos/{base_ticker}-{base_ticker}-logo.png")
+                    logo_sources.append(f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{base_ticker}.png")
+                    logo_sources.append(f"https://cryptoicons.org/api/icon/{base_ticker}/200")
+                    logo_sources.append(f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{base_ticker}.svg")
                 else:
-                    # Fallback: hide image if no logo
+                    logo_sources = [
+                        f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png",
+                        f"https://img.logo.dev/{ticker.lower()}.com?token=pk_KJ6f8BqBRoW8cLxNfE8L8A",
+                        f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{ticker.lower()}.svg",
+                        f"https://s3-symbol-logo.tradingview.com/etf/{ticker.lower()}.svg",
+                        f"https://s3-symbol-logo.tradingview.com/index/{ticker.lower()}.svg"
+                    ]
+
+                logo_loaded = False
+                for logo_url in logo_sources:
+                    try:
+                        print(f"Trying logo URL: {logo_url}")
+                        response = requests.get(logo_url, timeout=3)
+                        print(f"Response status: {response.status_code}")
+                        if response.status_code == 200:
+                            data = BytesIO(response.content)
+                            # Handle SVG logos by skipping (Kivy does not support SVG natively)
+                            if logo_url.endswith('.svg'):
+                                print("Skipping SVG logo")
+                                continue
+                            core_image = CoreImage(data, ext='png')
+                            if core_image.texture:
+                                image_widget.texture = core_image.texture
+                                image_widget.opacity = 1
+                                logo_loaded = True
+                                print(f"Logo loaded successfully from: {logo_url}")
+                                break
+                            else:
+                                print("Failed to create texture from image data")
+                        else:
+                            print(f"Failed to load logo from {logo_url}, status: {response.status_code}")
+                    except Exception as e:
+                        print(f"Exception loading logo from {logo_url}: {e}")
+                        continue
+
+                if not logo_loaded:
+                    # Fallback: hide image if no logo found
                     image_widget.opacity = 0
 
             except Exception as e:
