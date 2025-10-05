@@ -95,10 +95,10 @@ class DetailScreen(Screen):
     """Detailed information screen"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         # Main layout with padding
         self.layout = BoxLayout(orientation='vertical', padding=[10, 5])
-        
+
         # Back button at top
         self.back_button = SimpleButton(
             text="Back",
@@ -106,7 +106,25 @@ class DetailScreen(Screen):
             size=(100, 40),
             pos_hint={'x': 0}
         )
-        
+
+        # Top Low Risk Stocks button
+        self.top_stocks_button = SimpleButton(
+            text="Top Low Risk Stocks",
+            size_hint=(None, None),
+            size=(200, 40),
+            pos_hint={'right': 1}
+        )
+
+        # Button container
+        button_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height=50,
+            spacing=10
+        )
+        button_container.add_widget(self.back_button)
+        button_container.add_widget(self.top_stocks_button)
+
         # Scrollable content
         scroll_content = ScrollView(
             size_hint=(1, 1),
@@ -117,7 +135,7 @@ class DetailScreen(Screen):
             bar_inactive_color=(0.7, 0.7, 0.7, 0.2),
             scroll_type=['bars', 'content']
         )
-        
+
         # Content layout inside scroll view
         content_layout = BoxLayout(
             orientation='vertical',
@@ -126,7 +144,7 @@ class DetailScreen(Screen):
             padding=[5, 5]
         )
         content_layout.bind(minimum_height=content_layout.setter('height'))
-        
+
         # Chart card with fixed height
         self.chart_card = SimpleCard(
             orientation='vertical',
@@ -134,7 +152,7 @@ class DetailScreen(Screen):
             height=400,  # Fixed height for chart
             padding=[10, 10]
         )
-        
+
         # Risk metrics card with auto height
         self.metrics_card = SimpleCard(
             orientation='vertical',
@@ -142,7 +160,7 @@ class DetailScreen(Screen):
             height=200,  # Initial height for metrics
             padding=[15, 15]
         )
-        
+
         # Risk metrics label
         self.detail_label = Label(
             text="",
@@ -153,26 +171,26 @@ class DetailScreen(Screen):
             font_size='16sp'
         )
         self.detail_label.bind(size=self._update_label_text_size)
-        
+
         # Add widgets to cards
         self.chart = HistoryChartGarden(size_hint=(1, 1))
         self.chart_card.add_widget(self.chart)
         self.metrics_card.add_widget(self.detail_label)
-        
+
         # Add cards to content layout
         content_layout.add_widget(self.chart_card)
         content_layout.add_widget(self.metrics_card)
-        
+
         # Add everything to scroll view and main layout
         scroll_content.add_widget(content_layout)
-        self.layout.add_widget(self.back_button)
+        self.layout.add_widget(button_container)
         self.layout.add_widget(scroll_content)
-        
+
         self.add_widget(self.layout)
 
     def _update_label_text_size(self, instance, value):
         instance.text_size = (value[0], None)
-        
+
     def show_ticker_details(self, ticker: str, detailed_text: str):
         try:
             self.chart.load_data(ticker)
@@ -516,6 +534,242 @@ class StockAnalyzerLayout(BoxLayout):
         detail_screen.show_ticker_details(ticker, self.detailed_results)
         screen_manager.current = 'detail'
 
+class TopStocksScreen(Screen):
+    """Screen showing top 5 low-risk stocks"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Main layout
+        self.layout = BoxLayout(orientation='vertical', padding=[10, 5])
+
+        # Back button
+        self.back_button = SimpleButton(
+            text="Back",
+            size_hint=(None, None),
+            size=(100, 40),
+            pos_hint={'x': 0}
+        )
+
+        # Title
+        title = Label(
+            text="Top 5 Low-Risk Stocks",
+            font_size='24sp',
+            bold=True,
+            color=(1, 1, 1, 1),
+            size_hint=(1, None),
+            height=50,
+            halign='center'
+        )
+
+        # Scrollable content for stock list
+        scroll_content = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=10,
+            bar_color=(0.7, 0.7, 0.7, 0.9),
+            bar_inactive_color=(0.7, 0.7, 0.7, 0.2),
+            scroll_type=['bars', 'content']
+        )
+
+        # Content layout
+        self.content_layout = BoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            spacing=10,
+            padding=[5, 5]
+        )
+        self.content_layout.bind(minimum_height=self.content_layout.setter('height'))
+
+        # Loading label
+        self.loading_label = Label(
+            text="Loading top low-risk stocks...",
+            size_hint=(1, 1),
+            halign='center',
+            valign='middle',
+            color=(1, 1, 1, 0.8),
+            font_size='18sp'
+        )
+        self.content_layout.add_widget(self.loading_label)
+
+        scroll_content.add_widget(self.content_layout)
+
+        # Add to main layout
+        self.layout.add_widget(self.back_button)
+        self.layout.add_widget(title)
+        self.layout.add_widget(scroll_content)
+
+        self.add_widget(self.layout)
+
+        # Load data when screen is entered
+        self.bind(on_enter=self.load_top_stocks)
+
+    def load_top_stocks(self, *args):
+        """Load and display top low-risk stocks"""
+        from kivy.clock import Clock
+        Clock.schedule_once(self._fetch_and_display_stocks, 0.1)
+
+    def _fetch_and_display_stocks(self, dt):
+        """Fetch top stocks data and display them"""
+        try:
+            from risk import get_top_low_risk_stocks
+
+            # Clear loading label
+            self.content_layout.clear_widgets()
+
+            # Fetch top stocks
+            top_stocks = get_top_low_risk_stocks(5)
+
+            if not top_stocks:
+                error_label = Label(
+                    text="No low-risk stocks found.\nPlease check your internet connection.",
+                    size_hint=(1, 1),
+                    halign='center',
+                    valign='middle',
+                    color=(1, 0.5, 0.5, 1),
+                    font_size='16sp'
+                )
+                self.content_layout.add_widget(error_label)
+                return
+
+            # Display each stock
+            for i, metrics in enumerate(top_stocks, 1):
+                stock_card = self._create_stock_card(metrics, i)
+                self.content_layout.add_widget(stock_card)
+
+        except Exception as e:
+            print(f"Error loading top stocks: {e}")
+            error_label = Label(
+                text=f"Error loading stocks:\n{str(e)}",
+                size_hint=(1, 1),
+                halign='center',
+                valign='middle',
+                color=(1, 0.5, 0.5, 1),
+                font_size='16sp'
+            )
+            self.content_layout.clear_widgets()
+            self.content_layout.add_widget(error_label)
+
+    def _create_stock_card(self, metrics, rank):
+        """Create a card for a single stock"""
+        card = SimpleCard(
+            orientation='horizontal',
+            size_hint=(1, None),
+            height=100,
+            padding=[15, 10, 15, 10],
+            spacing=15
+        )
+
+        # Rank label
+        rank_label = Label(
+            text=f"#{rank}",
+            size_hint=(None, 1),
+            width=40,
+            halign='center',
+            valign='middle',
+            color=(1, 0.8, 0.2, 1),
+            font_size='20sp',
+            bold=True
+        )
+
+        # Logo image
+        logo_image = Image(
+            size_hint=(None, None),
+            size=(60, 60),
+            pos_hint={'center_y': 0.5}
+        )
+
+        # Stock info layout
+        info_layout = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 1),
+            spacing=5
+        )
+
+        # Company name and ticker
+        name_label = Label(
+            text="",
+            size_hint=(1, None),
+            height=30,
+            halign='left',
+            valign='middle',
+            markup=True,
+            font_size='16sp',
+            color=(1, 1, 1, 1)
+        )
+
+        # Price and volatility
+        price_label = Label(
+            text=f"${metrics.current_price:.2f} | Volatility: {metrics.volatility:.1%}",
+            size_hint=(1, None),
+            height=25,
+            halign='left',
+            valign='middle',
+            color=(1, 1, 1, 0.8),
+            font_size='14sp'
+        )
+
+        # Risk level
+        risk_label = Label(
+            text=f"Risk: {metrics.risk_level}",
+            size_hint=(1, None),
+            height=25,
+            halign='left',
+            valign='middle',
+            color=(0.1, 1, 0.1, 1) if metrics.risk_level == "LOW" else (1, 0.8, 0.2, 1),
+            font_size='14sp',
+            bold=True
+        )
+
+        info_layout.add_widget(name_label)
+        info_layout.add_widget(price_label)
+        info_layout.add_widget(risk_label)
+
+        card.add_widget(rank_label)
+        card.add_widget(logo_image)
+        card.add_widget(info_layout)
+
+        # Load logo and name asynchronously
+        self._load_stock_logo(metrics.ticker, logo_image, name_label)
+
+        return card
+
+    def _load_stock_logo(self, ticker, image_widget, name_label):
+        """Load stock logo and company name"""
+        from kivy.clock import Clock
+        import requests
+        from io import BytesIO
+        from kivy.core.image import Image as CoreImage
+
+        def download_logo(dt):
+            try:
+                # Get company info
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                company_name = info.get('shortName', info.get('longName', ticker))
+
+                # Update name label
+                name_label.text = f"[b]{company_name}[/b] ({ticker})"
+
+                # Try to load logo
+                logo_url = f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png"
+                response = requests.get(logo_url, timeout=5)
+                if response.status_code == 200:
+                    data = BytesIO(response.content)
+                    core_image = CoreImage(data, ext='png')
+                    image_widget.texture = core_image.texture
+                else:
+                    # Fallback: hide image if no logo
+                    image_widget.opacity = 0
+
+            except Exception as e:
+                print(f"Error loading logo for {ticker}: {e}")
+                name_label.text = f"[b]{ticker}[/b]"
+                image_widget.opacity = 0
+
+        Clock.schedule_once(download_logo, 0.1)
+
+
 class HistoryChartGarden(BoxLayout):
     """Matplotlib chart with improved visuals and performance"""
 
@@ -628,18 +882,29 @@ class HistoryChartGarden(BoxLayout):
 def create_main_ui():
     """Create the main screen manager with all screens"""
     sm = ScreenManager(transition=SlideTransition())
-    
+
     # Create screens
     main_screen = MainScreen(name='main')
     detail_screen = DetailScreen(name='detail')
-    
+    top_stocks_screen = TopStocksScreen(name='topstocks')
+
     # Add screens to manager
     sm.add_widget(main_screen)
     sm.add_widget(detail_screen)
-    
-    # Set up back button binding
+    sm.add_widget(top_stocks_screen)
+
+    # Set up back button bindings
     detail_screen.back_button.bind(
         on_press=lambda x: setattr(sm, 'current', 'main')
     )
-    
+
+    top_stocks_screen.back_button.bind(
+        on_press=lambda x: setattr(sm, 'current', 'detail')
+    )
+
+    # Set up top stocks button binding
+    detail_screen.top_stocks_button.bind(
+        on_press=lambda x: setattr(sm, 'current', 'topstocks')
+    )
+
     return sm

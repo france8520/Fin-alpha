@@ -218,10 +218,37 @@ def get_risk_summary(ticker: str) -> str:
     try:
         analyzer = StockRiskAnalyzer()
         metrics = analyzer.analyze_stock(ticker)
-        
+
         return f"""Quick Summary for {metrics.ticker}:
 Price: ${metrics.current_price:.2f}
 Volatility: {metrics.volatility:.1%}
 Risk: {metrics.risk_level}"""
     except Exception as e:
         return f"Unable to analyze {ticker}: {str(e)}"
+
+
+def get_top_low_risk_stocks(limit: int = 5) -> list[RiskMetrics]:
+    """Get top low-risk stocks sorted by volatility (lowest first)"""
+    # Predefined list of popular stocks to analyze
+    popular_stocks = [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'JNJ', 'PG', 'KO', 'PEP', 'WMT',
+        'HD', 'VZ', 'INTC', 'PFE', 'MRK', 'UNH', 'JPM', 'V', 'MA', 'DIS',
+        'NFLX', 'TSLA', 'NVDA', 'AMD', 'CRM', 'ORCL', 'IBM', 'CSCO', 'ADBE', 'PYPL'
+    ]
+
+    analyzer = StockRiskAnalyzer()
+    results = []
+
+    for ticker in popular_stocks:
+        try:
+            metrics = analyzer.analyze_stock(ticker)
+            if metrics:
+                results.append(metrics)
+        except Exception as e:
+            print(f"Skipping {ticker}: {e}")
+            continue
+
+    # Sort by volatility ascending (lowest first)
+    results.sort(key=lambda x: x.volatility)
+
+    return results[:limit]
