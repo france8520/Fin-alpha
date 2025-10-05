@@ -233,8 +233,8 @@ def get_top_low_risk_stocks(limit: int = 5) -> list[RiskMetrics]:
     popular_stocks = [
         'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'JNJ', 'PG', 'KO', 'PEP', 'WMT',
         'HD', 'VZ', 'INTC', 'PFE', 'MRK', 'UNH', 'JPM', 'V', 'MA', 'DIS',
-        'NFLX', 'TSLA', 'NVDA', 'AMD', 'CRM', 'ORCL', 'IBM', 'CSCO', 'ADBE', 'PYPL', '^GSPTSE', '^GSPC', '^IXIC',
-        'HG=F', 'GC=F', 'SI=F'
+        'NFLX', 'TSLA', 'NVDA', 'AMD', 'CRM', 'ORCL', 'IBM', 'CSCO', 'ADBE', 'PYPL', 'QCOM',
+        'HG=F', 'GC=F', 'SI=F', 'CL=F', 'BTC-USD', 'ETH-USD'
     ]
 
     analyzer = StockRiskAnalyzer()

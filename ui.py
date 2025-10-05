@@ -9,7 +9,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.image import Image
-from kivy.graphics import Color, RoundedRectangle, Line
+from kivy.graphics import Color, RoundedRectangle, Line, StencilPush, StencilPop, StencilUse, Ellipse
 from kivy.core.window import Window
 from kivy.properties import ObjectProperty
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
@@ -22,6 +22,23 @@ matplotlib.use('module://kivy_garden.matplotlib.backend_kivy')
 import matplotlib.pyplot as plt
 from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 import yfinance as yf
+
+class CircularImage(Image):
+    """Image widget that displays images in circular form using stencil clipping"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            StencilPush()
+            self.ellipse = Ellipse(pos=self.pos, size=self.size)
+            StencilUse()
+        with self.canvas.after:
+            StencilPop()
+        self.bind(pos=self.update_ellipse, size=self.update_ellipse)
+
+    def update_ellipse(self, *args):
+        self.ellipse.pos = self.pos
+        self.ellipse.size = self.size
 
 class SimpleCard(BoxLayout):
     """Simple card with background"""
@@ -312,7 +329,7 @@ class StockAnalyzerLayout(BoxLayout):
         self.results_container.bind(minimum_height=self.results_container.setter('height'))
 
         # Company logo placeholder (will be replaced by label)
-        self.company_logo = Image(
+        self.company_logo = CircularImage(
             size_hint=(None, None),
             size=(80, 80),
             pos_hint={'center_x': 0.5},
@@ -701,7 +718,7 @@ class TopStocksScreen(Screen):
         )
 
         # Logo image
-        logo_image = Image(
+        logo_image = CircularImage(
             size_hint=(None, None),
             size=(60, 60),
             pos_hint={'center_y': 0.5}
