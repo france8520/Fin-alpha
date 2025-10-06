@@ -21,6 +21,7 @@ import io
 import matplotlib
 matplotlib.use('module://kivy_garden.matplotlib.backend_kivy')
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 import yfinance as yf
 
@@ -913,25 +914,29 @@ class HistoryChartGarden(BoxLayout):
                 
             # Extract close prices and ensure 1D array
             prices = hist['Close'].values.flatten()
-            dates = np.arange(len(prices))  # Use simple indices for x-axis
-            
+            dates = hist.index  # Use actual dates for x-axis
+
             # Create the line plot
             ax.plot(dates, prices, color=self.line_color[:3], linewidth=2, label='Price')
-            
+
             # Add fill
             ax.fill_between(dates, prices, np.min(prices), alpha=0.1, color=self.line_color[:3])
-            
+
             # Format y-axis with dollar signs
             ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: f'${x:,.2f}'))
-            
+
+            # Format x-axis to show months
+            ax.xaxis.set_major_locator(mdates.MonthLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
+
             # Add grid
             ax.grid(True, alpha=0.2, linestyle='--', color='white')
-            
+
             # Add price markers
             current_price = prices[-1]
             high_price = np.max(prices)
             low_price = np.min(prices)
-            
+
             # Annotate current price
             ax.annotate(f'${current_price:,.2f}',
                        xy=(dates[-1], current_price),
@@ -944,11 +949,11 @@ class HistoryChartGarden(BoxLayout):
                            edgecolor='none',
                            pad=3
                        ))
-            
+
             # Add high/low annotations
             high_idx = np.argmax(prices)
             low_idx = np.argmin(prices)
-            
+
             ax.annotate(f'High: ${high_price:,.2f}',
                        xy=(dates[high_idx], high_price),
                        xytext=(0, 15),
@@ -956,7 +961,7 @@ class HistoryChartGarden(BoxLayout):
                        ha='center',
                        color='lightgreen',
                        fontsize=9)
-                       
+
             ax.annotate(f'Low: ${low_price:,.2f}',
                        xy=(dates[low_idx], low_price),
                        xytext=(0, -15),
