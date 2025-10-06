@@ -4,6 +4,7 @@ Simple, Clean UI Components
 
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
@@ -584,8 +585,16 @@ class TopStocksScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Main layout
-        self.layout = BoxLayout(orientation='vertical', padding=[10, 5])
+        # Main layout - FloatLayout for overlay positioning
+        self.layout = FloatLayout()
+
+        # Content widget - contains the main UI
+        self.content_widget = BoxLayout(
+            orientation='vertical',
+            padding=[10, 5],
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0}
+        )
 
         # Back button
         self.back_button = SimpleButton(
@@ -626,25 +635,33 @@ class TopStocksScreen(Screen):
         )
         self.content_layout.bind(minimum_height=self.content_layout.setter('height'))
 
-        # Loading label
+        scroll_content.add_widget(self.content_layout)
+
+        # Add to content widget
+        self.content_widget.add_widget(self.back_button)
+        self.content_widget.add_widget(title)
+        self.content_widget.add_widget(scroll_content)
+
+        # Loading overlay - centered on the page
         self.loading_label = Label(
             text="Loading top low-risk stocks...",
-            size_hint=(1, 1),
+            size_hint=(None, None),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
             halign='center',
             valign='middle',
             color=(1, 1, 1, 0.8),
             font_size='18sp'
         )
-        self.content_layout.add_widget(self.loading_label)
 
-        scroll_content.add_widget(self.content_layout)
-
-        # Add to main layout
-        self.layout.add_widget(self.back_button)
-        self.layout.add_widget(title)
-        self.layout.add_widget(scroll_content)
+        # Add widgets to main layout
+        self.layout.add_widget(self.content_widget)
+        self.layout.add_widget(self.loading_label)
 
         self.add_widget(self.layout)
+
+        # Initially hide content, show loading
+        self.content_widget.opacity = 0
+        self.loading_label.opacity = 1
 
         # Load data when screen is entered
         self.bind(on_enter=self.load_top_stocks)
@@ -675,12 +692,11 @@ class TopStocksScreen(Screen):
                     font_size='16sp'
                 )
                 self.content_layout.add_widget(error_label)
-                return
-
-            # Display each stock
-            for i, metrics in enumerate(top_stocks, 1):
-                stock_card = self._create_stock_card(metrics, i)
-                self.content_layout.add_widget(stock_card)
+            else:
+                # Display each stock
+                for i, metrics in enumerate(top_stocks, 1):
+                    stock_card = self._create_stock_card(metrics, i)
+                    self.content_layout.add_widget(stock_card)
 
         except Exception as e:
             print(f"Error loading top stocks: {e}")
@@ -694,6 +710,11 @@ class TopStocksScreen(Screen):
             )
             self.content_layout.clear_widgets()
             self.content_layout.add_widget(error_label)
+
+        finally:
+            # Hide loading, show content
+            self.loading_label.opacity = 0
+            self.content_widget.opacity = 1
 
     def _create_stock_card(self, metrics, rank):
         """Create a card for a single stock"""
