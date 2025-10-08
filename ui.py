@@ -470,32 +470,32 @@ class StockAnalyzerLayout(BoxLayout):
                     if ticker.upper().endswith("-USD"):
                         base_ticker = ticker.upper().replace("-USD", "").lower()
                         # Multiple crypto logo sources
-                        logo_sources.append(f"https://cryptologos.cc/logos/{base_ticker}-{base_ticker}-logo.png")
-                        logo_sources.append(f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{base_ticker}.png")
-                        logo_sources.append(f"https://cryptoicons.org/api/icon/{base_ticker}/200")
-                        logo_sources.append(f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{base_ticker}.svg")
+                        logo_sources.extend([
+                        f"https://cryptologos.cc/logos/{base_ticker}-{base_ticker}-logo.png",
+                        f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{base_ticker}.png",
+                        f"https://cryptoicons.org/api/icon/{base_ticker}/200",
+                        f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{base_ticker}.svg",
+                        ])
                     else:
-                        logo_sources = [
+                        logo_sources.extend([
                             f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png",
                             f"https://img.logo.dev/{ticker.lower()}.com?token=pk_KJ6f8BqBRoW8cLxNfE8L8A",
                             f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{ticker.lower()}.svg",
                             f"https://s3-symbol-logo.tradingview.com/etf/{ticker.lower()}.svg",
                             f"https://s3-symbol-logo.tradingview.com/index/{ticker.lower()}.svg"
-                        ]
+                        ])
 
                     logo_loaded = False
                     for logo_url in logo_sources:
                         try:
-                            print(f"Trying logo URL: {logo_url}")
+                            if logo_url.endswith('.svg'):
+                                continue
                             response = requests.get(logo_url, timeout=3)
-                            print(f"Response status: {response.status_code}")
                             if response.status_code == 200:
                                 data = BytesIO(response.content)
-                                # Handle SVG logos by skipping (Kivy does not support SVG natively)
-                                if logo_url.endswith('.svg'):
-                                    print("Skipping SVG logo")
-                                    continue
                                 core_image = CoreImage(data, ext='png')
+                                if core_image.texture:
+                                    self.company_logo.texture = core_image.texture
                                 if core_image.texture:
                                     self.company_logo.texture = core_image.texture
                                     self.company_logo.opacity = 1
@@ -530,28 +530,57 @@ class StockAnalyzerLayout(BoxLayout):
                             print(f"Exception loading logo from {logo_url}: {e}")
                             continue
 
-                    # Fallback: Show company name as text if logo fails
-                    self.company_logo.opacity = 0
+                    # Fallback: Use Fin.png if no logo could be loaded
+                    try:
+                        # Use Fin.png as fallback
+                        self.company_logo.source = 'Fin.png'
+                        self.company_logo.opacity = 1
+                        logo_loaded = True
+                        print("Using Fin.png as fallback logo")
+                        
+                        # Add company name label below logo if not exists
+                        if not hasattr(self, 'company_name_label'):
+                            self.company_name_label = Label(
+                                text="",
+                                markup=True,
+                                size_hint=(1, None),
+                                height=40,
+                                halign='center',
+                                valign='middle',
+                                color=(1, 1, 1, 0.9),
+                                font_size='16sp'
+                            )
+                            self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
+                            # Add after logo
+                            logo_index = self.results_container.children.index(self.company_logo)
+                            self.results_container.add_widget(self.company_name_label, index=logo_index)
+                            
+                        self.company_name_label.text = f"[b]{company_name}[/b]\n{ticker}"
+                        self.company_name_label.opacity = 1
+                    except Exception as e:
+                        print(f"Failed to load fallback logo Fin.png: {e}")
+                        # If even the fallback fails, show text-based logo
+                        self.company_logo.opacity = 0
+                        
+                        if not hasattr(self, 'company_name_label'):
+                            self.company_name_label = Label(
+                                text="",
+                                markup=True,
+                                size_hint=(1, None),
+                                height=60,
+                                halign='center',
+                                valign='middle',
+                                color=(1, 1, 1, 0.9),
+                                font_size='18sp'
+                            )
+                            self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
+                            logo_index = self.results_container.children.index(self.company_logo)
+                            self.results_container.add_widget(self.company_name_label, index=logo_index)
 
-                    if not hasattr(self, 'company_name_label'):
-                        self.company_name_label = Label(
-                            text="",
-                            markup=True,
-                            size_hint=(1, None),
-                            height=60,
-                            halign='center',
-                            valign='middle',
-                            color=(1, 1, 1, 0.9),
-                            font_size='18sp'
-                        )
-                        self.company_name_label.bind(size=lambda *x: setattr(self.company_name_label, 'text_size', (self.company_name_label.width, None)))
-                        logo_index = self.results_container.children.index(self.company_logo)
-                        self.results_container.add_widget(self.company_name_label, index=logo_index)
-
-                    # Show text-based logo
-                    logo_text = f"[b][size=24sp]{company_name}[/size][/b]\n[size=14sp]{ticker}[/size]"
-                    self.company_name_label.text = logo_text
-                    self.company_name_label.opacity = 1
+                        # Show text-based logo
+                        logo_text = f"[b][size=24sp]{company_name}[/size][/b]\n[size=14sp]{ticker}[/size]"
+                        self.company_name_label.text = logo_text
+                        self.company_name_label.opacity = 1
                     
                 except Exception as e:
                     print(f"Could not load company info: {e}")
@@ -831,10 +860,13 @@ class TopStocksScreen(Screen):
                 else:
                     logo_sources = [
                         f"https://storage.googleapis.com/iex/api/logos/{ticker.upper()}.png",
-                        f"https://img.logo.dev/{ticker.lower()}.com?token=pk_KJ6f8BqBRoW8cLxNfE8L8A",
+                        f"https://api.logo.dev/{ticker}.com?size=200",
+                        f"https://companiesmarketcap.com/img/company-logos/64/{ticker.upper()}.png",
+                        f"https://companieslogo.com/img/orig/{ticker.upper()}-logo.png",
                         f"https://s3-symbol-logo.tradingview.com/crypto/XTVC-{ticker.lower()}.svg",
-                        f"https://s3-symbol-logo.tradingview.com/etf/{ticker.lower()}.svg",
+                        f"https://s3-symbol-logo.tradingview.com/etf/{ticker.lower()}.svg", 
                         f"https://s3-symbol-logo.tradingview.com/index/{ticker.lower()}.svg"
+                        f"Fin-alpha/Fin.png"
                     ]
 
                 logo_loaded = False
@@ -865,8 +897,17 @@ class TopStocksScreen(Screen):
                         continue
 
                 if not logo_loaded:
-                    # Fallback: hide image if no logo found
-                    image_widget.opacity = 0
+                    # Fallback: Use Fin.png if no logo could be loaded
+                    try:
+                        # Use Fin.png as fallback
+                        image_widget.source = 'Fin.png'
+                        image_widget.opacity = 1
+                        logo_loaded = True
+                        print("Using Fin.png as fallback logo")
+                    except Exception as e:
+                        print(f"Failed to load fallback logo Fin.png: {e}")
+                        # If even the fallback fails, hide image
+                        image_widget.opacity = 0
 
             except Exception as e:
                 print(f"Error loading logo for {ticker}: {e}")
